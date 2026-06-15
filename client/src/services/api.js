@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -85,6 +85,10 @@ export const subscribersAPI = {
   getStats: async () => {
     const response = await api.get('/api/subscribers/stats');
     return response.data;
+  },
+  sendDirect: async (id, subject, body) => {
+    const response = await api.post(`/api/subscribers/${id}/send-direct`, { subject, body });
+    return response.data;
   }
 };
 
@@ -122,6 +126,20 @@ export const campaignsAPI = {
   resendNonOpeners: async (id) => {
     const response = await api.post(`/api/campaigns/${id}/resend-non-openers`);
     return response.data;
+  },
+  uploadImage: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post('/api/campaigns/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  sendTest: async (id, email) => {
+    const response = await api.post(`/api/campaigns/${id}/send-test`, { email });
+    return response.data;
   }
 };
 
@@ -151,6 +169,14 @@ export const aiAPI = {
   },
   analyzeCampaign: async (campaignId) => {
     const response = await api.post('/api/ai/analyze-campaign', { campaignId });
+    return response.data;
+  },
+  rewrite: async (body, option) => {
+    const response = await api.post('/api/ai/rewrite', { body, option });
+    return response.data;
+  },
+  suggestSubjects: async (topic, body) => {
+    const response = await api.post('/api/ai/suggest-subjects', { topic, body });
     return response.data;
   }
 };

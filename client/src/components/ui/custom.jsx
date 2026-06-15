@@ -117,7 +117,7 @@ export const Select = React.forwardRef(({ className, children, ...props }, ref) 
 Select.displayName = "Select";
 
 // --- DIALOG / MODAL ---
-export function Dialog({ open, onOpenChange, children }) {
+export function Dialog({ open, onOpenChange, children, className }) {
   if (!open) return null;
 
   return (
@@ -128,7 +128,7 @@ export function Dialog({ open, onOpenChange, children }) {
         onClick={() => onOpenChange(false)}
       />
       {/* Content Container */}
-      <div className="relative z-10 w-full max-w-md scale-95 transform rounded-lg border border-border bg-surface p-6 shadow-premium transition-all duration-300 animate-in fade-in zoom-in-95">
+      <div className={cn("relative z-10 w-full max-w-md scale-95 transform rounded-lg border border-border bg-surface p-6 shadow-premium transition-all duration-300 animate-in fade-in zoom-in-95", className)}>
         {children}
       </div>
     </div>

@@ -10,7 +10,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
         const res = await axios.get(`${baseUrl}/api/auth/me`, {
           withCredentials: true
         });
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
       await axios.post(`${baseUrl}/api/auth/logout`, {}, {
         withCredentials: true
       });

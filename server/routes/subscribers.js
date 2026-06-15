@@ -4,7 +4,11 @@ import csvParser from 'csv-parser';
 import crypto from 'crypto';
 import { Readable } from 'stream';
 import Subscriber from '../models/Subscriber.js';
+import Campaign from '../models/Campaign.js';
+import Job from '../models/Job.js';
 import auth from '../middleware/auth.js';
+import emailService from '../services/email/index.js';
+import mongoose from 'mongoose';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -76,7 +80,7 @@ router.get('/stats', auth, async (req, res) => {
 
   try {
     const stats = await Subscriber.aggregate([
-      { $match: { creatorId: new Object(creatorId) } },
+      { $match: { creatorId: new mongoose.Types.ObjectId(creatorId) } },
       {
         $group: {
           _id: null,
@@ -250,6 +254,100 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(200).json({ message: 'Subscriber deleted successfully' });
   } catch (err) {
     console.error(`Delete subscriber error: ${err.message}`);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /api/subscribers/:id/send-direct
+ * Send a custom direct transactional email to a single subscriber.
+ * Auto-creates/reuses a hidden system campaign to track opens/clicks/bounces.
+ */
+router.post('/:id/send-direct', auth, async (req, res) => {
+  const { id } = req.params;
+  const { subject, body } = req.body;
+  const creatorId = req.user.id;
+
+  if (!subject || !body) {
+    return res.status(400).json({ error: 'Subject and body are required' });
+  }
+
+  try {
+    const subscriber = await Subscriber.findOne({ _id: id, creatorId });
+    if (!subscriber) {
+      return res.status(404).json({ error: 'Subscriber not found' });
+    }
+
+    if (subscriber.status !== 'active') {
+      return res.status(400).json({ error: 'Cannot send emails to unsubscribed or invalid subscribers' });
+    }
+
+    // 1. Find or create the system transactional campaign for this creator
+    let campaign = await Campaign.findOne({
+      creatorId,
+      title: '[System] Direct Transactional Messages'
+    });
+
+    if (!campaign) {
+      campaign = await Campaign.create({
+        creatorId,
+        title: '[System] Direct Transactional Messages',
+        subject: 'Direct Message',
+        body: 'Direct Transactional Message',
+        status: 'sent',
+        sentAt: new Date()
+      });
+    }
+
+    // 2. Personalize the body
+    let htmlBody = body;
+    htmlBody = htmlBody.replace(/\{\{\s*name\s*\}\}/g, subscriber.name);
+    htmlBody = htmlBody.replace(/\{\{\s*email\s*\}\}/g, subscriber.email);
+
+    // 3. Build and append unsubscribe link
+    const unsubscribeLink = `${process.env.BASE_URL}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
+    const unsubscribeFooter = `
+      <br/>
+      <hr style="border: 0; border-top: 1px solid #ffffff15; margin: 30px 0 15px 0;" />
+      <p style="font-size: 11px; font-family: 'Inter', sans-serif; color: #8888aa; text-align: center; line-height: 1.5;">
+        You are receiving this because you subscribed to updates from ${subscriber.name || 'our mailing list'}.<br/>
+        If you wish to stop receiving these emails, you can 
+        <a href="${unsubscribeLink}" style="color: #7c6aff; text-decoration: underline;">unsubscribe here</a>.
+      </p>
+    `;
+
+    if (htmlBody.includes('{{unsubscribe}}') || htmlBody.includes('{{ unsubscribe }}')) {
+      htmlBody = htmlBody.replace(/\{\{\s*unsubscribe\s*\}\}/g, unsubscribeLink);
+    } else {
+      htmlBody += unsubscribeFooter;
+    }
+
+    // 4. Send the email using the unified EmailService abstraction layer
+    const result = await emailService.sendCampaignEmail(subscriber.email, subject.trim(), htmlBody);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error?.message || 'Failed to send direct email.' });
+    }
+
+    // 5. Create a Job record to track delivery status, opens, clicks via webhook
+    await Job.create({
+      campaignId: campaign._id,
+      subscriberId: subscriber._id,
+      email: subscriber.email,
+      name: subscriber.name,
+      status: 'sent',
+      resendId: result.messageId
+    });
+
+    // Increment campaign counts
+    await Campaign.updateOne(
+      { _id: campaign._id },
+      { $inc: { totalSubscribers: 1, totalSent: 1 } }
+    );
+
+    res.status(200).json({ message: 'Direct email sent successfully', messageId: result.messageId });
+  } catch (err) {
+    console.error(`Send direct email error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -4,14 +4,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Search, Plus, Upload, Trash2, ChevronLeft, ChevronRight, Loader2, Users, CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
+import { Search, Plus, Upload, Trash2, Mail, ChevronLeft, ChevronRight, Loader2, Users, CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { subscribersAPI } from '../services/api.js';
-import { Button, Input, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../components/ui/custom.jsx';
-import { formatDate } from '../lib/utils.js';
+import { Button, Input, Textarea, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../components/ui/custom.jsx';
+import { formatDate, getErrorMessage } from '../lib/utils.js';
 
 const subscriberSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Please enter a valid email address')
+});
+
+const sendFormSchema = z.object({
+  subject: z.string().min(1, 'Subject is required'),
+  body: z.string().min(1, 'Email body is required')
 });
 
 export default function Subscribers() {
@@ -23,6 +28,10 @@ export default function Subscribers() {
   const [statusFilter, setStatusFilter] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  
+  // Custom single email state
+  const [sendMailOpen, setSendMailOpen] = useState(false);
+  const [selectedSub, setSelectedSub] = useState(null);
 
   // Zod form setup for manual creation
   const {
@@ -32,6 +41,16 @@ export default function Subscribers() {
     formState: { errors }
   } = useForm({
     resolver: zodResolver(subscriberSchema)
+  });
+
+  // Zod form setup for single sending
+  const {
+    register: registerSend,
+    handleSubmit: handleSendSubmit,
+    reset: resetSend,
+    formState: { errors: sendErrors }
+  } = useForm({
+    resolver: zodResolver(sendFormSchema)
   });
 
   // Queries
@@ -57,7 +76,21 @@ export default function Subscribers() {
       setAddOpen(false);
     },
     onError: (err) => {
-      const errorMsg = err.response?.data?.error || 'Failed to add subscriber.';
+      const errorMsg = getErrorMessage(err, 'Failed to add subscriber.');
+      toast.error(errorMsg);
+    }
+  });
+
+  const sendDirectMutation = useMutation({
+    mutationFn: ({ id, subject, body }) => subscribersAPI.sendDirect(id, subject, body),
+    onSuccess: () => {
+      toast.success('Direct email sent successfully!');
+      resetSend();
+      setSendMailOpen(false);
+      setSelectedSub(null);
+    },
+    onError: (err) => {
+      const errorMsg = getErrorMessage(err, 'Failed to send direct email.');
       toast.error(errorMsg);
     }
   });
@@ -123,8 +156,8 @@ export default function Subscribers() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-text">Subscribers</h2>
-          <p className="text-sm text-muted">Manage your mailing lists and CSV importing.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-text">Audience</h2>
+          <p className="text-sm text-muted">Manage your contacts and CSV importing.</p>
         </div>
         <div className="flex gap-3">
           <input
@@ -141,11 +174,11 @@ export default function Subscribers() {
             className="gap-2 border-border"
           >
             {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Import CSV
+            Import contacts
           </Button>
           <Button onClick={() => setAddOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
-            Add Subscriber
+            Add contacts
           </Button>
         </div>
       </div>
@@ -189,9 +222,10 @@ export default function Subscribers() {
             <Search className="h-4 w-4" />
           </span>
           <Input
-            placeholder="Search by name or email..."
+            placeholder="Search by name, email, or multiple emails..."
             className="pl-10"
             value={search}
+            disabled={stats?.total === 0}
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(1);
@@ -200,14 +234,15 @@ export default function Subscribers() {
         </div>
         <div className="w-full sm:w-48">
           <select
-            className="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1 text-sm text-text focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+            className="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1 text-sm text-text focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50"
             value={statusFilter}
+            disabled={stats?.total === 0}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
           >
-            <option value="">All Statuses</option>
+            <option value="">All contacts</option>
             <option value="active">Active</option>
             <option value="unsubscribed">Unsubscribed</option>
             <option value="invalid">Invalid</option>
@@ -220,6 +255,70 @@ export default function Subscribers() {
         {listLoading ? (
           <div className="flex h-48 items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          </div>
+        ) : stats?.total === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-md mx-auto">
+            {/* Modern 3D-like Icon emblem */}
+            <div className="relative mb-6 flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-b from-[#161622] to-[#0d0d14] border border-[#ffffff15] shadow-premium overflow-hidden group">
+              {/* Inner shadow/gradient effects */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-accent/5 to-transparent opacity-60 rounded-2xl" />
+              
+              {/* Stacked metallic hexagons to match the screenshot */}
+              <svg className="w-14 h-14 transition-transform duration-500 group-hover:scale-110" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Outer Hexagon */}
+                <path d="M30 4L52 16.7V42.3L30 55L8 42.3V16.7L30 4Z" fill="url(#hex-grad-1)" stroke="#ffffff10" strokeWidth="1"/>
+                {/* Mid Hexagon */}
+                <path d="M30 11L46 20.2V38.8L30 48L14 38.8V20.2L30 11Z" fill="url(#hex-grad-2)" stroke="#ffffff15" strokeWidth="1"/>
+                {/* Inner Hexagon */}
+                <path d="M30 18L40 23.8V35.2L30 41L20 35.2V23.8L30 18Z" fill="url(#hex-grad-3)" stroke="#7c6aff" strokeWidth="1.5" strokeOpacity="0.8"/>
+                
+                <defs>
+                  <linearGradient id="hex-grad-1" x1="30" y1="4" x2="30" y2="55" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#ffffff" stopOpacity="0.03"/>
+                    <stop offset="1" stopColor="#ffffff" stopOpacity="0.07"/>
+                  </linearGradient>
+                  <linearGradient id="hex-grad-2" x1="30" y1="11" x2="30" y2="48" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#ffffff" stopOpacity="0.05"/>
+                    <stop offset="1" stopColor="#ffffff" stopOpacity="0.12"/>
+                  </linearGradient>
+                  <linearGradient id="hex-grad-3" x1="30" y1="18" x2="30" y2="41" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#7c6aff" stopOpacity="0.4"/>
+                    <stop offset="1" stopColor="#503eff" stopOpacity="0.8"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              
+              {/* Glowing decorative dot */}
+              <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            </div>
+
+            {/* Header */}
+            <h3 className="text-xl font-bold tracking-tight text-text mb-2">No contacts yet</h3>
+            
+            {/* Description */}
+            <p className="text-sm text-muted mb-8 leading-relaxed">
+              Add contacts to manage, segment, and reach your audience.
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Button 
+                onClick={() => setAddOpen(true)}
+                className="bg-white text-black hover:bg-white/90 font-medium px-5 py-2.5 rounded-lg border border-transparent shadow-sm flex items-center gap-2 transition-all duration-200"
+              >
+                <Plus className="h-4 w-4" />
+                Add contacts
+              </Button>
+              <Button 
+                onClick={handleImportClick}
+                variant="outline"
+                disabled={importing}
+                className="border-border hover:bg-white/5 px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200"
+              >
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 text-muted" />}
+                Import contacts
+              </Button>
+            </div>
           </div>
         ) : listData.length === 0 ? (
           <div className="text-center py-12">
@@ -246,7 +345,18 @@ export default function Subscribers() {
                       <Badge variant={sub.status}>{sub.status}</Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted">{formatDate(sub.createdAt).split(',')[0]}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedSub(sub);
+                          setSendMailOpen(true);
+                        }}
+                        disabled={sub.status !== 'active'}
+                        className="text-muted hover:text-accent hover:bg-accent/10 p-1.5 rounded transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none"
+                        title="Send Custom Email"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => handleDelete(sub._id)}
                         className="text-muted hover:text-danger hover:bg-danger/10 p-1.5 rounded transition-all duration-200"
@@ -329,6 +439,67 @@ export default function Subscribers() {
             <Button type="submit" disabled={addSubscriberMutation.isLoading}>
               {addSubscriberMutation.isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Add Subscriber
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+      {/* Send Custom Email Modal */}
+      <Dialog open={sendMailOpen} onOpenChange={(val) => {
+        setSendMailOpen(val);
+        if (!val) {
+          resetSend();
+          setSelectedSub(null);
+        }
+      }}>
+        <DialogHeader>
+          <DialogTitle>Send Custom Email</DialogTitle>
+          {selectedSub && (
+            <p className="text-xs text-muted mt-1">To: <span className="text-text font-semibold">{selectedSub.name} ({selectedSub.email})</span></p>
+          )}
+        </DialogHeader>
+        <form onSubmit={handleSendSubmit((data) => {
+          sendDirectMutation.mutate({
+            id: selectedSub._id,
+            subject: data.subject,
+            body: data.body
+          });
+        })}>
+          <DialogContent className="mt-4 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Subject Line</label>
+              <Input
+                placeholder="e.g. Quick update on your account"
+                {...registerSend('subject')}
+                className={sendErrors.subject ? 'border-danger' : ''}
+              />
+              {sendErrors.subject && <p className="mt-1.5 text-xs text-danger">{sendErrors.subject.message}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Email Body (HTML/Text)</label>
+              <Textarea
+                placeholder="Hello {{name}},\n\nHere is your custom message..."
+                rows={8}
+                {...registerSend('body')}
+                className={sendErrors.body ? 'border-danger' : ''}
+              />
+              {sendErrors.body && <p className="mt-1.5 text-xs text-danger">{sendErrors.body.message}</p>}
+            </div>
+          </DialogContent>
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetSend();
+                setSendMailOpen(false);
+                setSelectedSub(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={sendDirectMutation.isLoading}>
+              {sendDirectMutation.isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Send Email
             </Button>
           </DialogFooter>
         </form>

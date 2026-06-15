@@ -115,3 +115,79 @@ export const analyzeCampaign = async (stats) => {
 
   return callGemini(systemPrompt, userPrompt, mockCallback);
 };
+
+/**
+ * Rewrite email content based on a selected tone/option while preserving HTML format.
+ */
+export const rewriteCampaign = async (body, option) => {
+  const systemPrompt = `You are a professional email copywriter. Rewrite the provided email body content to match the requested style: "${option}". Enforce these rules:
+1. Preserve all HTML tags, structure, styling, and links EXACTLY as they are.
+2. Only rewrite the textual content inside the tags.
+3. Do not change personalization variables like {{name}} or {{unsubscribe}}.
+4. Return ONLY a JSON object with a single key "rewrittenBody" containing the rewritten HTML body string.`;
+
+  const userPrompt = `Email HTML to rewrite:\n${body}`;
+
+  const mockCallback = () => {
+    let prefix = '';
+    switch (option) {
+      case 'professional':
+        prefix = '<p><em>[Rewritten: More Professional]</em></p>';
+        break;
+      case 'casual':
+        prefix = '<p><em>[Rewritten: More Casual]</em></p>';
+        break;
+      case 'persuasive':
+        prefix = '<p><em>[Rewritten: More Persuasive]</em></p>';
+        break;
+      case 'shorter':
+        prefix = '<p><em>[Rewritten: Shorter & Conciser]</em></p>';
+        break;
+      case 'longer':
+        prefix = '<p><em>[Rewritten: Longer & More Detailed]</em></p>';
+        break;
+      case 'urgent':
+        prefix = '<p><em>[Rewritten: More Urgent]</em></p>';
+        break;
+      case 'friendly':
+        prefix = '<p><em>[Rewritten: More Friendly]</em></p>';
+        break;
+      default:
+        prefix = '<p><em>[Rewritten]</em></p>';
+    }
+    // Simple mock rewrite: prepend the style and slightly alter the body
+    return {
+      rewrittenBody: prefix + body
+    };
+  };
+
+  return callGemini(systemPrompt, userPrompt, mockCallback);
+};
+
+/**
+ * Generate 5 alternative subject lines and reasoning based on topic and content.
+ */
+export const suggestSubjects = async (topic, body) => {
+  const systemPrompt = `You are an expert email marketer. Generate exactly 5 diverse subject line alternatives for the given campaign topic and body preview. For each suggestion, provide a brief reasoning (under 15 words) explaining its open-rate benefit. Also recommend which one is the single best subject.
+Your response must be a JSON object with keys:
+"suggestions": array of 5 objects, where each object has "subject" (string) and "reasoning" (string)
+"bestSubject": string (matching one of the suggestions)`;
+
+  const userPrompt = `Campaign Topic: "${topic}"\nBody Preview:\n${body ? body.slice(0, 400) : ''}`;
+
+  const mockCallback = () => {
+    const suggestions = [
+      { subject: `Quick question about ${topic || 'your newsletter'}`, reasoning: "Generates high curiosity, feels like a personal 1-to-1 email." },
+      { subject: `The secret to mastering ${topic || 'email marketing'}`, reasoning: "Leverages the curiosity gap to drive immediate clicks." },
+      { subject: `Don't miss out on these new ${topic || 'updates'}`, reasoning: "Uses urgency and FOMO (Fear of Missing Out)." },
+      { subject: `How we solved our biggest ${topic || 'hurdle'}`, reasoning: "Story-driven hook, highly clickable and relatable." },
+      { subject: `A simpler way to handle ${topic || 'campaigns'}`, reasoning: "Offers direct, high-value solution to a common pain point." }
+    ];
+    return {
+      suggestions,
+      bestSubject: suggestions[0].subject
+    };
+  };
+
+  return callGemini(systemPrompt, userPrompt, mockCallback);
+};

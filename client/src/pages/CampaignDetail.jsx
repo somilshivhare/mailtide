@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Play, Sparkles, RefreshCw, Trash2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Sparkles, RefreshCw, Trash2, ShieldAlert, Eye, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { campaignsAPI, aiAPI } from '../services/api.js';
 import useCampaign from '../hooks/useCampaign.js';
 import CampaignBuilder from '../components/CampaignBuilder.jsx';
 import ProgressTracker from '../components/ProgressTracker.jsx';
 import StatsCard from '../components/StatsCard.jsx';
-import { Button, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter, Badge } from '../components/ui/custom.jsx';
-import { formatDate, formatPercent } from '../lib/utils.js';
+import { Button, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter, Badge, Input } from '../components/ui/custom.jsx';
+import { formatDate, formatPercent, getErrorMessage } from '../lib/utils.js';
+import EmailPreview from '../components/EmailPreview.jsx';
 
 export default function CampaignDetail() {
   const { id } = useParams();
@@ -19,6 +20,10 @@ export default function CampaignDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [insights, setInsights] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isTestOpen, setIsTestOpen] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [testSending, setTestSending] = useState(false);
 
   const {
     useCampaignDetailQuery,
@@ -48,7 +53,7 @@ export default function CampaignDetail() {
       toast.success('Campaign dispatch started successfully!');
       queryClient.invalidateQueries({ queryKey: ['campaign', id] });
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to send campaign.';
+      const errorMsg = getErrorMessage(err, 'Failed to send campaign.');
       toast.error(errorMsg);
     }
   };
@@ -72,7 +77,7 @@ export default function CampaignDetail() {
         toast.success('Resending campaign to non-openers.');
         queryClient.invalidateQueries({ queryKey: ['campaign', id] });
       } catch (err) {
-        const errorMsg = err.response?.data?.error || 'Failed to schedule resend.';
+        const errorMsg = getErrorMessage(err, 'Failed to schedule resend.');
         toast.error(errorMsg);
       }
     }
@@ -89,6 +94,23 @@ export default function CampaignDetail() {
       toast.error('Failed to generate insights. Check your Anthropic API key.');
     } finally {
       setInsightsLoading(false);
+    }
+  };
+
+  const handleSendTest = async (e) => {
+    if (e) e.preventDefault();
+    if (!testEmail) return;
+    setTestSending(true);
+    try {
+      await campaignsAPI.sendTest(id, testEmail);
+      toast.success(`Test email sent successfully to ${testEmail}`);
+      setIsTestOpen(false);
+      setTestEmail('');
+    } catch (err) {
+      const errorMsg = getErrorMessage(err, 'Failed to send test email.');
+      toast.error(errorMsg);
+    } finally {
+      setTestSending(false);
     }
   };
 
@@ -147,7 +169,15 @@ export default function CampaignDetail() {
         </div>
 
         {isDraft && (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" size="sm" onClick={() => setIsPreviewOpen(true)} className="border-border">
+              <Eye className="h-4 w-4 mr-1.5" />
+              Preview Saved
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setIsTestOpen(true)} className="border-border">
+              <Send className="h-4 w-4 mr-1.5" />
+              Send Test
+            </Button>
             <Button variant="outline" size="sm" onClick={handleDelete} className="text-danger border-danger/20 hover:bg-danger/5">
               <Trash2 className="h-4 w-4 mr-1.5" />
               Delete Draft
@@ -237,6 +267,22 @@ export default function CampaignDetail() {
               <div className="rounded-lg border border-border bg-surface p-6 space-y-4">
                 <h3 className="text-sm font-semibold tracking-tight text-text">Campaign Actions</h3>
                 <div className="space-y-3">
+                  <Button
+                    onClick={() => setIsPreviewOpen(true)}
+                    variant="outline"
+                    className="w-full justify-start gap-2 border-border"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Preview Newsletter
+                  </Button>
+                  <Button
+                    onClick={() => setIsTestOpen(true)}
+                    variant="outline"
+                    className="w-full justify-start gap-2 border-border"
+                  >
+                    <Send className="h-4 w-4" />
+                    Send Test Email
+                  </Button>
                   {isSent && (
                     <Button
                       onClick={handleResendNonOpeners}
@@ -317,6 +363,49 @@ export default function CampaignDetail() {
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {/* Send Test Email Dialog */}
+      <Dialog open={isTestOpen} onOpenChange={setIsTestOpen}>
+        <form onSubmit={handleSendTest}>
+          <DialogHeader>
+            <DialogTitle>Send Test Email</DialogTitle>
+          </DialogHeader>
+          <DialogContent className="mt-4 space-y-4">
+            <p className="text-sm text-muted leading-relaxed">
+              Verify your newsletter formatting by sending a single test email. We will automatically insert test data for personalized tags.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                Recipient Email Address
+              </label>
+              <Input
+                type="email"
+                required
+                placeholder="e.g. vikingswitcher@gmail.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+              />
+            </div>
+          </DialogContent>
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="outline" onClick={() => setIsTestOpen(false)} disabled={testSending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={testSending} className="bg-accent text-white">
+              {testSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Send Test
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+
+      {/* Campaign Email Preview Modal */}
+      <EmailPreview
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        subject={campaign.subject}
+        body={campaign.body}
+      />
     </div>
   );
 }

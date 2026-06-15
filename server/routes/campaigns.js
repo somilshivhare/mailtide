@@ -1,11 +1,46 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import Campaign from '../models/Campaign.js';
 import Subscriber from '../models/Subscriber.js';
 import Job from '../models/Job.js';
 import { emailQueue } from '../queues/emailQueue.js';
 import { schedulerQueue } from '../queues/schedulerQueue.js';
 import auth from '../middleware/auth.js';
+import emailService from '../services/email/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configure multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../uploads/'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+
+// Configure file filter (images only)
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'), false);
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 const router = Router();
 
@@ -161,7 +196,7 @@ router.delete('/:id', auth, async (req, res) => {
 router.post('/:id/send', auth, async (req, res) => {
   const { id } = req.params;
   const creatorId = req.user.id;
-  const { scheduledAt } = req.body;
+  const { scheduledAt } = req.body || {};
 
   try {
     const campaign = await Campaign.findOne({ _id: id, creatorId });
@@ -395,6 +430,67 @@ router.post('/:id/resend-non-openers', auth, async (req, res) => {
     res.status(200).json({ queued: validNonOpeners.length });
   } catch (err) {
     console.error(`Resend campaign non-openers error: ${err.message}`);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /api/campaigns/upload-image
+ * Uploads a local image and returns its absolute URL.
+ */
+router.post('/upload-image', auth, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file uploaded' });
+  }
+
+  // Construct static public URL. Use BASE_URL or fallback to req headers.
+  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+
+  res.status(200).json({ url: imageUrl });
+}, (err, req, res, next) => {
+  // Catch Multer/file filter/file size errors
+  res.status(400).json({ error: err.message });
+});
+
+/**
+ * POST /api/campaigns/:id/send-test
+ * Sends a single test email of the campaign to the specified address.
+ */
+router.post('/:id/send-test', auth, async (req, res) => {
+  const { id } = req.params;
+  const creatorId = req.user.id;
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email address is required for testing' });
+  }
+
+  try {
+    const campaign = await Campaign.findOne({ _id: id, creatorId });
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
+    // Call emailService to send a single transactional test email
+    const subject = `[Test] ${campaign.subject}`;
+    
+    let htmlBody = campaign.body;
+    htmlBody = htmlBody.replace(/\{\{\s*name\s*\}\}/g, 'Test Recipient');
+    htmlBody = htmlBody.replace(/\{\{\s*email\s*\}\}/g, email);
+    
+    const dummyUnsubscribe = `${process.env.BASE_URL || 'http://localhost:5001'}/api/unsubscribe?token=test-token`;
+    htmlBody = htmlBody.replace(/\{\{\s*unsubscribe\s*\}\}/g, dummyUnsubscribe);
+
+    const result = await emailService.sendCampaignEmail(email, subject, htmlBody);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error?.message || 'Failed to send test email' });
+    }
+
+    res.status(200).json({ message: 'Test email sent successfully', messageId: result.messageId });
+  } catch (err) {
+    console.error(`Send test email error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
   }
 });

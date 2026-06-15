@@ -30,3 +30,14 @@ export function formatPercent(value) {
   if (value === undefined || value === null) return '0%';
   return `${Number(value).toFixed(1)}%`;
 }
+
+/**
+ * Safely extracts an error message string from Axios error responses.
+ */
+export function getErrorMessage(err, fallback = 'Something went wrong.') {
+  const data = err.response?.data;
+  if (!data) return fallback;
+  if (typeof data.error === 'string') return data.error;
+  if (data.message && typeof data.message === 'string') return data.message;
+  return fallback;
+}

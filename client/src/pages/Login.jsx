@@ -8,6 +8,7 @@ import { Mail, Lock, Loader2 } from 'lucide-react';
 import { authAPI } from '../services/api.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { Button, Input } from '../components/ui/custom.jsx';
+import { getErrorMessage } from '../lib/utils.js';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -35,7 +36,7 @@ export default function Login() {
       toast.success(`Welcome back, ${response.user.name}!`);
       navigate('/');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Invalid email or password.';
+      const errorMsg = getErrorMessage(err, 'Invalid email or password.');
       toast.error(errorMsg);
     } finally {
       setLoading(false);

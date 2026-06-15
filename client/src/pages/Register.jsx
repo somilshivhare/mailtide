@@ -8,6 +8,8 @@ import { User, Mail, Lock, Loader2 } from 'lucide-react';
 import { authAPI } from '../services/api.js';
 import { Button, Input } from '../components/ui/custom.jsx';
 
+import { getErrorMessage } from '../lib/utils.js';
+
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
@@ -33,7 +35,7 @@ export default function Register() {
       toast.success('Registration successful! Please sign in.');
       navigate('/login');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Registration failed. Try a different email.';
+      const errorMsg = getErrorMessage(err, 'Registration failed. Try a different email.');
       toast.error(errorMsg);
     } finally {
       setLoading(false);

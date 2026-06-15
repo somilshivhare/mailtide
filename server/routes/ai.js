@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import Campaign from '../models/Campaign.js';
-import { writeCampaign, optimizeSubject, analyzeCampaign } from '../services/ai.js';
+import { writeCampaign, optimizeSubject, analyzeCampaign, rewriteCampaign, suggestSubjects } from '../services/ai.js';
 import auth from '../middleware/auth.js';
 
 const router = Router();
@@ -77,6 +77,46 @@ router.post('/analyze-campaign', auth, async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error(`AI Campaign Analysis error: ${err.message}`);
+    res.status(500).json({ error: 'AI processing failed' });
+  }
+});
+
+/**
+ * POST /api/ai/rewrite
+ * Rewrites a campaign body with a specific tone option.
+ */
+router.post('/rewrite', auth, async (req, res) => {
+  const { body, option } = req.body;
+
+  if (!body || !option) {
+    return res.status(400).json({ error: 'Body and option are required' });
+  }
+
+  try {
+    const result = await rewriteCampaign(body, option);
+    res.status(200).json(result);
+  } catch (err) {
+    console.error(`AI Campaign Rewrite error: ${err.message}`);
+    res.status(500).json({ error: 'AI processing failed' });
+  }
+});
+
+/**
+ * POST /api/ai/suggest-subjects
+ * Suggests alternative subject lines and reasoning.
+ */
+router.post('/suggest-subjects', auth, async (req, res) => {
+  const { topic, body } = req.body;
+
+  if (!topic) {
+    return res.status(400).json({ error: 'Topic is required' });
+  }
+
+  try {
+    const result = await suggestSubjects(topic, body);
+    res.status(200).json(result);
+  } catch (err) {
+    console.error(`AI Subject Suggestions error: ${err.message}`);
     res.status(500).json({ error: 'AI processing failed' });
   }
 });

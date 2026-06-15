@@ -1,14 +1,12 @@
+import 'dotenv/config';
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import Job from './models/Job.js';
 import Campaign from './models/Campaign.js';
 import Subscriber from './models/Subscriber.js';
 import emailService from './services/email/index.js';
 import { emailQueue } from './queues/emailQueue.js';
-
-dotenv.config();
 
 const { REDIS_URL, MONGODB_URI, BASE_URL } = process.env;
 if (!REDIS_URL || !MONGODB_URI) {

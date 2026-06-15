@@ -5,7 +5,7 @@ import { useCampaign } from '../hooks/useCampaign.js';
 import { toast } from 'sonner';
 import CampaignBuilder from '../components/CampaignBuilder.jsx';
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } from '../components/ui/custom.jsx';
-import { formatDate, formatPercent } from '../lib/utils.js';
+import { formatDate, formatPercent, getErrorMessage } from '../lib/utils.js';
 
 export default function Campaigns() {
   const navigate = useNavigate();
@@ -50,7 +50,7 @@ export default function Campaigns() {
       toast.success('Campaign bulk sending initiated!');
       navigate(`/campaigns/${campaign._id}`);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to dispatch campaign.';
+      const errorMsg = getErrorMessage(err, 'Failed to dispatch campaign.');
       toast.error(errorMsg);
     }
   };
