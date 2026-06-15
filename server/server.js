@@ -2,6 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
+
+import authRouter from './routes/auth.js';
+import subscribersRouter from './routes/subscribers.js';
+import campaignsRouter from './routes/campaigns.js';
+import analyticsRouter from './routes/analytics.js';
+import aiRouter from './routes/ai.js';
+import webhooksRouter from './routes/webhooks.js';
+import errorMiddleware from './middleware/errorMiddleware.js';
 
 dotenv.config();
 
@@ -26,6 +36,10 @@ requiredEnv.forEach(key => {
 const app = express();
 const { PORT, MONGODB_URI, CLIENT_URL } = process.env;
 
+// Security headers
+app.use(helmet());
+
+// CORS config
 app.use(cors({
   origin: CLIENT_URL,
   credentials: true,
@@ -33,12 +47,51 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json());
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again later.' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again after 15 minutes.' }
+});
+
+app.use('/api', limiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// Express parsers - parse JSON with verification helper for rawBody
+app.use(express.json({
+  verify: (req, res, buf) => {
+    if (req.originalUrl.includes('/api/webhooks')) {
+      req.rawBody = buf.toString();
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
+
+// Register routes
+app.use('/api/auth', authRouter);
+app.use('/api/subscribers', subscribersRouter);
+app.use('/api/campaigns', campaignsRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/ai', aiRouter);
+app.use('/', webhooksRouter);
 
 app.get('/', (req, res) => {
   res.status(200).json({ status: 'healthy' });
 });
+
+// Global Error Handler
+app.use(errorMiddleware);
 
 const connectDB = async () => {
   try {
