@@ -10,12 +10,19 @@ if (!JWT_SECRET) {
 }
 
 const auth = (req, res, next) => {
-  const { authorization } = req.headers;
-  if (!authorization?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
+  let token = req.cookies?.token;
+
+  // Fallback: Check Authorization header for backward compatibility
+  if (!token) {
+    const { authorization } = req.headers;
+    if (authorization?.startsWith('Bearer ')) {
+      token = authorization.split(' ')[1];
+    }
   }
 
-  const [, token] = authorization.split(' ');
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied. No token provided.' });
+  }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);

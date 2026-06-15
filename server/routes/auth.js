@@ -9,6 +9,13 @@ const { JWT_SECRET } = process.env;
 
 const generateToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+};
+
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -31,6 +38,8 @@ router.post('/register', async (req, res) => {
     });
 
     const token = generateToken({ id: user._id, email: user.email });
+
+    res.cookie('token', token, cookieOptions);
 
     res.status(201).json({
       token,
@@ -67,6 +76,8 @@ router.post('/login', async (req, res) => {
 
     const token = generateToken({ id: user._id, email: user.email });
 
+    res.cookie('token', token, cookieOptions);
+
     res.status(200).json({
       token,
       user: {
@@ -93,6 +104,19 @@ router.get('/me', auth, async (req, res) => {
     console.error(`Get me error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+/**
+ * POST /api/auth/logout
+ * Clears the HttpOnly authentication cookie.
+ */
+router.post('/logout', (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.status(200).json({ message: 'Logged out successfully' });
 });
 
 export default router;

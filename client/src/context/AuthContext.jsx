@@ -5,59 +5,57 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
-
-  // Set Authorization header for all global axios requests
-  if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  } else {
-    delete axios.defaults.headers.common['Authorization'];
-  }
 
   useEffect(() => {
     const loadUser = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       try {
         const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         const res = await axios.get(`${baseUrl}/api/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          withCredentials: true
         });
         setUser(res.data);
       } catch (err) {
-        console.error('Failed to load user with token, logging out:', err.message);
-        // Clear token since it is invalid/expired
-        logout();
+        console.log('No active session found or session expired.');
+        setUser(null);
+        // Clear legacy token if present
+        localStorage.removeItem('token');
       } finally {
         setLoading(false);
       }
     };
 
     loadUser();
-  }, [token]);
+  }, []);
 
   const login = (newToken, newUser) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
+    // Keep writing legacy token in case some components read it directly
+    if (newToken) {
+      localStorage.setItem('token', newToken);
+    }
     setUser(newUser);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      await axios.post(`${baseUrl}/api/auth/logout`, {}, {
+        withCredentials: true
+      });
+    } catch (err) {
+      console.error('Failed to log out on server:', err.message);
+    } finally {
+      // Clear local states and storage
+      localStorage.removeItem('token');
+      setUser(null);
+    }
   };
 
   const isAuthenticated = !!user;
+  const dummyToken = user ? 'cookie_auth_active' : null;
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, token: dummyToken, loading, isAuthenticated, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { rateLimit } from 'express-rate-limit';
 
 import authRouter from './routes/auth.js';
@@ -38,6 +39,9 @@ const { PORT, MONGODB_URI, CLIENT_URL } = process.env;
 
 // Security headers
 app.use(helmet());
+
+// Cookie parsing (MUST be registered before routes)
+app.use(cookieParser());
 
 // CORS config
 app.use(cors({
