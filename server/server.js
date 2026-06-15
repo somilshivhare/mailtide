@@ -20,7 +20,7 @@ const requiredEnv = [
   'MONGODB_URI',
   'REDIS_URL',
   'RESEND_API_KEY',
-  'ANTHROPIC_API_KEY',
+  'GEMINI_API_KEY',
   'JWT_SECRET',
   'CLIENT_URL',
   'BASE_URL'

@@ -1,50 +1,51 @@
-import { Anthropic } from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const { ANTHROPIC_API_KEY } = process.env;
+const { GEMINI_API_KEY } = process.env;
 
-let anthropicClient = null;
-const isMockMode = !ANTHROPIC_API_KEY || ANTHROPIC_API_KEY.includes('...') || ANTHROPIC_API_KEY === 'sk-ant-';
+let geminiClient = null;
+const isMockMode = !GEMINI_API_KEY || GEMINI_API_KEY.includes('...') || GEMINI_API_KEY.includes('mock');
 
 if (!isMockMode) {
   try {
-    anthropicClient = new Anthropic({
-      apiKey: ANTHROPIC_API_KEY
-    });
+    geminiClient = new GoogleGenerativeAI(GEMINI_API_KEY);
   } catch (err) {
-    console.warn(`Anthropic client failed to initialize: ${err.message}. Running in mock mode.`);
+    console.warn(`Gemini client failed to initialize: ${err.message}. Running in mock mode.`);
   }
 } else {
-  console.log('ANTHROPIC_API_KEY is not set or is a placeholder. Anthropic AI service running in MOCK mode.');
+  console.log('GEMINI_API_KEY is not set or is a placeholder. Gemini AI service running in MOCK mode.');
 }
 
 /**
- * Call Anthropic API to generate content.
- * Helper function with timeout and fallback logic.
+ * Call Gemini API to generate content.
+ * Helper function with native JSON mode constraint and fallback logic.
  */
-const callClaude = async (systemPrompt, userPrompt, mockCallback) => {
-  if (isMockMode || !anthropicClient) {
+const callGemini = async (systemPrompt, userPrompt, mockCallback) => {
+  if (isMockMode || !geminiClient) {
     await new Promise((resolve) => setTimeout(resolve, 500)); // simulate delay
     return mockCallback();
   }
 
   try {
-    const message = await anthropicClient.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1500,
-      temperature: 0.7,
-      system: systemPrompt + '\nIMPORTANT: You must respond ONLY with raw, valid JSON. Do not write any preamble, explanation, markdown blocks, or trailing text.',
-      messages: [{ role: 'user', content: userPrompt }]
+    const model = geminiClient.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: systemPrompt + '\nIMPORTANT: You must respond ONLY with raw, valid JSON. Do not write any markdown blocks (like ```json), preamble, explanation, or trailing text.'
     });
 
-    const text = message.content[0].text.trim();
-    // Strip markdown formatting if present
-    const cleanText = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    return JSON.parse(cleanText);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.7
+      }
+    });
+
+    const text = result.response.text().trim();
+    return JSON.parse(text);
   } catch (err) {
-    console.error(`Anthropic API call failed: ${err.message}`);
+    console.error(`Gemini API call failed: ${err.message}`);
     // If real API fails, return the mock as safe fallback
     return mockCallback();
   }
@@ -71,7 +72,7 @@ export const writeCampaign = async (topic, tone, audience) => {
 <p>Best regards,<br/>The Team</p>`
   });
 
-  return callClaude(systemPrompt, userPrompt, mockCallback);
+  return callGemini(systemPrompt, userPrompt, mockCallback);
 };
 
 /**
@@ -94,7 +95,7 @@ export const optimizeSubject = async (subjectLine) => {
     };
   };
 
-  return callClaude(systemPrompt, userPrompt, mockCallback);
+  return callGemini(systemPrompt, userPrompt, mockCallback);
 };
 
 /**
@@ -112,5 +113,5 @@ export const analyzeCampaign = async (stats) => {
     ]
   });
 
-  return callClaude(systemPrompt, userPrompt, mockCallback);
+  return callGemini(systemPrompt, userPrompt, mockCallback);
 };
