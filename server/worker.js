@@ -17,6 +17,9 @@ if (!REDIS_URL || !MONGODB_URI) {
 // ── Startup diagnostic ─────────────────────────────────────────────────────
 console.log('='.repeat(60));
 console.log('[Worker] Starting Mailtide Email Worker');
+console.log(`[Worker] PID          : ${process.pid}`);
+console.log(`[Worker] Concurrency  : 3`);
+console.log(`[Worker] Limiter      : max=1, duration=600ms`);
 console.log(`[Worker] SENDER_EMAIL : ${process.env.SENDER_EMAIL || '⚠️  NOT SET'}`);
 console.log(`[Worker] NODE_ENV     : ${process.env.NODE_ENV}`);
 console.log(`[Worker] BASE_URL     : ${BASE_URL}`);
@@ -34,7 +37,8 @@ try {
 
 const connection = new Redis(REDIS_URL, {
   maxRetriesPerRequest: null,
-  enableReadyCheck: false
+  enableReadyCheck: false,
+  tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
 });
 
 connection.on('error', (err) => {

@@ -12,7 +12,8 @@ if (!REDIS_URL) {
 
 const connection = new Redis(REDIS_URL, {
   maxRetriesPerRequest: null,
-  enableReadyCheck: false
+  enableReadyCheck: false,
+  tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
 });
 
 connection.on('error', (err) => {
