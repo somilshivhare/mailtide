@@ -44,6 +44,7 @@ requiredEnv.forEach(key => {
 });
 
 const app = express();
+app.set('trust proxy', 1);
 const { PORT, MONGODB_URI, CLIENT_URL } = process.env;
 
 // Security headers
@@ -124,6 +125,7 @@ const start = async () => {
   await connectDB();
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Express trust proxy setting: ${app.get('trust proxy')}`);
   });
 
   const shutdown = () => {
