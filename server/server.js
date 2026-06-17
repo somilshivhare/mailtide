@@ -61,23 +61,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// IP and Proxy Debug Logging Middleware
-app.use((req, res, next) => {
-  console.log(`[Debug IP] PID: ${process.pid} | Path: ${req.path}`);
-  console.log(`  trust proxy value : ${req.app.get('trust proxy')}`);
-  console.log(`  req.ip            : ${req.ip}`);
-  console.log(`  req.ips           : ${JSON.stringify(req.ips)}`);
-  console.log(`  X-Forwarded-For   : ${req.headers['x-forwarded-for']}`);
-  next();
-});
-
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: false,
   message: { error: 'Too many requests from this IP, please try again later.' }
 });
 
@@ -86,7 +76,7 @@ const authLimiter = rateLimit({
   max: 20, // 20 requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: false,
   message: { error: 'Too many authentication attempts. Please try again after 15 minutes.' }
 });
 
