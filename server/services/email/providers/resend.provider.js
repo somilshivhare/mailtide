@@ -64,11 +64,22 @@ class ResendProvider extends BaseEmailProvider {
         }
       }
 
+      // Map optional file attachments.
+      // Resend expects: [{ filename: 'file.pdf', content: Buffer }]
+      if (options.attachments && Array.isArray(options.attachments) && options.attachments.length > 0) {
+        sendParams.attachments = options.attachments;
+        console.log(`[ResendProvider] Attaching ${options.attachments.length} file(s): ${options.attachments.map(a => a.filename).join(', ')}`);
+      }
+
+
+      // ── Diagnostic: log the API call ──
+      console.log(`[ResendProvider] Calling Resend API → from="${from}" to="${to}" subject="${subject}"`);
+
       // Send the email (SDK returns { data, error })
       const { data, error } = await this.client.emails.send(sendParams);
 
       if (error) {
-        console.error(`Resend API Error: ${error.message} (${error.name})`);
+        console.error(`[ResendProvider] API error → ${error.message} (${error.name})`);
         return {
           messageId: null,
           success: false,
@@ -79,13 +90,14 @@ class ResendProvider extends BaseEmailProvider {
         };
       }
 
+      console.log(`[ResendProvider] API success → Resend message ID: ${data.id}`);
       return {
         messageId: data.id,
         success: true
       };
     } catch (networkError) {
       // Capture unexpected network-level failures (e.g. DNS failure, connection timeout)
-      console.error(`Resend Provider Network Error: ${networkError.message}`);
+      console.error(`[ResendProvider] Network error → ${networkError.message}`);
       return {
         messageId: null,
         success: false,
@@ -95,6 +107,7 @@ class ResendProvider extends BaseEmailProvider {
         }
       };
     }
+
   }
 }
 

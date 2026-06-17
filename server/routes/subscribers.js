@@ -11,7 +11,12 @@ import emailService from '../services/email/index.js';
 import mongoose from 'mongoose';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const csvUpload = multer({ storage: multer.memoryStorage() });
+const attachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB per attachment
+});
+
 
 // Email validation helper
 const isValidEmail = (email) => {
@@ -142,7 +147,7 @@ router.post('/', auth, async (req, res) => {
  * POST /api/subscribers/import
  * CSV bulk subscriber import.
  */
-router.post('/import', auth, upload.single('file'), async (req, res) => {
+router.post('/import', auth, csvUpload.single('file'), async (req, res) => {
   const creatorId = req.user.id;
 
   if (!req.file) {
@@ -263,10 +268,11 @@ router.delete('/:id', auth, async (req, res) => {
  * Send a custom direct transactional email to a single subscriber.
  * Auto-creates/reuses a hidden system campaign to track opens/clicks/bounces.
  */
-router.post('/:id/send-direct', auth, async (req, res) => {
+router.post('/:id/send-direct', auth, attachmentUpload.array('attachments', 5), async (req, res) => {
   const { id } = req.params;
   const { subject, body } = req.body;
   const creatorId = req.user.id;
+  const attachmentFiles = req.files || [];
 
   if (!subject || !body) {
     return res.status(400).json({ error: 'Subject and body are required' });
@@ -301,35 +307,46 @@ router.post('/:id/send-direct', auth, async (req, res) => {
 
     // 2. Personalize the body
     let htmlBody = body;
-    htmlBody = htmlBody.replace(/\{\{\s*name\s*\}\}/g, subscriber.name);
-    htmlBody = htmlBody.replace(/\{\{\s*email\s*\}\}/g, subscriber.email);
+    htmlBody = htmlBody.replace(/(\{\{\s*name\s*\}\})/g, subscriber.name);
+    htmlBody = htmlBody.replace(/(\{\{\s*email\s*\}\})/g, subscriber.email);
 
     // 3. Build and append unsubscribe link
     const unsubscribeLink = `${process.env.BASE_URL}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
     const unsubscribeFooter = `
       <br/>
-      <hr style="border: 0; border-top: 1px solid #ffffff15; margin: 30px 0 15px 0;" />
-      <p style="font-size: 11px; font-family: 'Inter', sans-serif; color: #8888aa; text-align: center; line-height: 1.5;">
-        You are receiving this because you subscribed to updates from ${subscriber.name || 'our mailing list'}.<br/>
-        If you wish to stop receiving these emails, you can 
-        <a href="${unsubscribeLink}" style="color: #7c6aff; text-decoration: underline;">unsubscribe here</a>.
+      <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0 15px 0;" />
+      <p style="font-size: 11px; font-family: 'Inter', sans-serif; color: #9ca3af; text-align: center; line-height: 1.5;">
+        You are receiving this because you subscribed to updates.<br/>
+        <a href="${unsubscribeLink}" style="color: #6366f1; text-decoration: underline;">Unsubscribe</a>
       </p>
     `;
 
     if (htmlBody.includes('{{unsubscribe}}') || htmlBody.includes('{{ unsubscribe }}')) {
-      htmlBody = htmlBody.replace(/\{\{\s*unsubscribe\s*\}\}/g, unsubscribeLink);
+      htmlBody = htmlBody.replace(/(\{\{\s*unsubscribe\s*\}\})/g, unsubscribeLink);
     } else {
       htmlBody += unsubscribeFooter;
     }
 
-    // 4. Send the email using the unified EmailService abstraction layer
-    const result = await emailService.sendCampaignEmail(subscriber.email, subject.trim(), htmlBody);
+    // 4. Build attachments array for Resend
+    const resendAttachments = attachmentFiles.map((file) => ({
+      filename: file.originalname,
+      content: file.buffer // Buffer — Resend accepts Buffer directly
+    }));
+
+    // 5. Send the email via provider
+    const result = await emailService.provider.send({
+      from: emailService.getSender(),
+      to: subscriber.email,
+      subject: subject.trim(),
+      html: htmlBody,
+      options: resendAttachments.length > 0 ? { attachments: resendAttachments } : {}
+    });
 
     if (!result.success) {
       return res.status(500).json({ error: result.error?.message || 'Failed to send direct email.' });
     }
 
-    // 5. Create a Job record to track delivery status, opens, clicks via webhook
+    // 6. Create a Job record to track delivery
     await Job.create({
       campaignId: campaign._id,
       subscriberId: subscriber._id,
@@ -339,13 +356,16 @@ router.post('/:id/send-direct', auth, async (req, res) => {
       resendId: result.messageId
     });
 
-    // Increment campaign counts
     await Campaign.updateOne(
       { _id: campaign._id },
       { $inc: { totalSubscribers: 1, totalSent: 1 } }
     );
 
-    res.status(200).json({ message: 'Direct email sent successfully', messageId: result.messageId });
+    res.status(200).json({
+      message: 'Direct email sent successfully',
+      messageId: result.messageId,
+      attachmentsSent: attachmentFiles.length
+    });
   } catch (err) {
     console.error(`Send direct email error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });

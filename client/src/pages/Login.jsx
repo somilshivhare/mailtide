@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Mail, Lock, Loader2 } from 'lucide-react';
+import { Mail, Lock, Loader2, Layers } from 'lucide-react';
 import { authAPI } from '../services/api.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { Button, Input } from '../components/ui/custom.jsx';
@@ -20,11 +20,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors }
-  } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(loginSchema)
   });
 
@@ -36,67 +32,80 @@ export default function Login() {
       toast.success(`Welcome back, ${response.user.name}!`);
       navigate('/');
     } catch (err) {
-      const errorMsg = getErrorMessage(err, 'Invalid email or password.');
-      toast.error(errorMsg);
+      toast.error(getErrorMessage(err, 'Invalid email or password.'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-8 shadow-premium">
-        <div className="flex flex-col space-y-2 text-center mb-8">
-          <span className="text-3xl">🌊</span>
-          <h2 className="text-2xl font-bold tracking-tight text-text">Sign in to Mailtide</h2>
-          <p className="text-sm text-muted">Enter your credentials to manage your newsletters</p>
+    <div className="flex min-h-screen bg-surface">
+      {/* Left panel — branding */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 bg-text">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+            <Layers className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-sm font-semibold text-white">Mailtide</span>
         </div>
+        <div>
+          <blockquote className="space-y-2">
+            <p className="text-lg text-white leading-relaxed">
+              "Mailtide transformed how we reach our audience — clean interface, powerful delivery, real analytics."
+            </p>
+            <footer className="text-sm text-white/60">— Product team at Mailtide</footer>
+          </blockquote>
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Email Address</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted">
-                <Mail className="h-4 w-4" />
-              </span>
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                className="pl-10"
-                {...register('email')}
-              />
+      {/* Right panel — form */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center gap-2 justify-center mb-8">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-white">
+              <Layers className="h-4 w-4" />
             </div>
-            {errors.email && <p className="mt-1.5 text-xs text-danger">{errors.email.message}</p>}
+            <span className="text-sm font-semibold text-text">Mailtide</span>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Password</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted">
-                <Lock className="h-4 w-4" />
-              </span>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                className="pl-10"
-                {...register('password')}
-              />
-            </div>
-            {errors.password && <p className="mt-1.5 text-xs text-danger">{errors.password.message}</p>}
+          <div className="mb-7">
+            <h2 className="text-xl font-semibold text-text">Sign in</h2>
+            <p className="text-sm text-muted mt-1">Enter your credentials to continue.</p>
           </div>
 
-          <Button type="submit" className="w-full mt-6" disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Sign In
-          </Button>
-        </form>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-text">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
+                <Input type="email" placeholder="you@example.com" className="pl-9" {...register('email')} />
+              </div>
+              {errors.email && <p className="text-xs text-danger">{errors.email.message}</p>}
+            </div>
 
-        <p className="mt-6 text-center text-sm text-muted">
-          New to Mailtide?{' '}
-          <Link to="/register" className="text-accent hover:text-accent-hover font-medium underline underline-offset-4">
-            Create an account
-          </Link>
-        </p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-text">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
+                <Input type="password" placeholder="••••••••" className="pl-9" {...register('password')} />
+              </div>
+              {errors.password && <p className="text-xs text-danger">{errors.password.message}</p>}
+            </div>
+
+            <Button type="submit" className="w-full mt-2 gap-2" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Sign In
+            </Button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-muted">
+            Don't have an account?{' '}
+            <Link to="/register" className="text-accent hover:text-accent-hover font-medium">
+              Create one
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

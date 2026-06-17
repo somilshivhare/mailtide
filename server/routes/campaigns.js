@@ -476,18 +476,22 @@ router.post('/:id/send-test', auth, async (req, res) => {
     const subject = `[Test] ${campaign.subject}`;
     
     let htmlBody = campaign.body;
-    htmlBody = htmlBody.replace(/\{\{\s*name\s*\}\}/g, 'Test Recipient');
-    htmlBody = htmlBody.replace(/\{\{\s*email\s*\}\}/g, email);
+    htmlBody = htmlBody.replace(/(\{\{\s*name\s*\}\})/g, 'Test Recipient');
+    htmlBody = htmlBody.replace(/(\{\{\s*email\s*\}\})/g, email);
     
     const dummyUnsubscribe = `${process.env.BASE_URL || 'http://localhost:5001'}/api/unsubscribe?token=test-token`;
-    htmlBody = htmlBody.replace(/\{\{\s*unsubscribe\s*\}\}/g, dummyUnsubscribe);
+    htmlBody = htmlBody.replace(/(\{\{\s*unsubscribe\s*\}\})/g, dummyUnsubscribe);
+
+    console.log(`[TestEmail] Campaign: ${id} | From: ${process.env.SENDER_EMAIL} | To: ${email} | Subject: ${subject}`);
 
     const result = await emailService.sendCampaignEmail(email, subject, htmlBody);
 
     if (!result.success) {
+      console.error(`[TestEmail] FAILED — To: ${email} | Error: ${result.error?.message}`);
       return res.status(500).json({ error: result.error?.message || 'Failed to send test email' });
     }
 
+    console.log(`[TestEmail] SUCCESS — To: ${email} | Resend ID: ${result.messageId}`);
     res.status(200).json({ message: 'Test email sent successfully', messageId: result.messageId });
   } catch (err) {
     console.error(`Send test email error: ${err.message}`);

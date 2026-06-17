@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Outlet } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -12,19 +12,30 @@ import Subscribers from './pages/Subscribers.jsx';
 import Campaigns from './pages/Campaigns.jsx';
 import CampaignDetail from './pages/CampaignDetail.jsx';
 import Analytics from './pages/Analytics.jsx';
+import Profile from './pages/Profile.jsx';
+import SettingsPage from './pages/Settings.jsx';
+import Queue from './pages/Queue.jsx';
 
 /**
- * Layout wrapper providing sidebar navigation and scrollable main content.
+ * Layout wrapper: collapsible sidebar + sticky navbar + scrollable main content.
  */
 function Layout() {
-  return (
-    <div className="min-h-screen bg-background text-text">
-      {/* Fixed Sidebar */}
-      <Sidebar />
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-      {/* Main Content Area */}
-      <div className="pl-64 flex flex-col min-h-screen">
-        {/* Sticky Header */}
+  return (
+    <div className="min-h-screen bg-background text-text flex">
+      {/* Sidebar */}
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((c) => !c)}
+      />
+
+      {/* Main content area — shifts right based on sidebar width */}
+      <div
+        className="flex flex-col flex-1 min-h-screen transition-all duration-200"
+        style={{ marginLeft: sidebarCollapsed ? '60px' : '220px' }}
+      >
+        {/* Sticky topbar */}
         <Navbar />
 
         {/* Scrollable page body */}
@@ -51,10 +62,13 @@ export default function App() {
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/campaigns/:id" element={<CampaignDetail />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/queue" element={<Queue />} />
         </Route>
       </Route>
 
-      {/* Catch-all redirect to dashboard */}
+      {/* Fallback */}
       <Route path="*" element={<Dashboard />} />
     </Routes>
   );

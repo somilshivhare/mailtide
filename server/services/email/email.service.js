@@ -11,14 +11,25 @@ class EmailService {
       throw new Error('EmailService must be initialized with a concrete Email Provider.');
     }
     this.provider = provider;
+
+    // Validate sender at construction — surfaces misconfiguration immediately.
+    const sender = process.env.SENDER_EMAIL;
+    if (!sender) {
+      throw new Error(
+        'SENDER_EMAIL environment variable is required. ' +
+        'Set it to a verified sender, e.g. "Mailtide <hello@mailtide.me>"'
+      );
+    }
+    console.log(`[EmailService] Initialized. Sender: ${sender}`);
   }
 
   /**
    * Gets the default sender email address configured in the environment.
+   * Falls back to a safe placeholder so the error is visible in logs.
    * @returns {string} Sender email string
    */
   getSender() {
-    return process.env.SENDER_EMAIL || 'MailFlow <onboarding@resend.dev>';
+    return process.env.SENDER_EMAIL;
   }
 
   /**

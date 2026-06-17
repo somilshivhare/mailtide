@@ -14,6 +14,15 @@ if (!REDIS_URL || !MONGODB_URI) {
   process.exit(1);
 }
 
+// ── Startup diagnostic ─────────────────────────────────────────────────────
+console.log('='.repeat(60));
+console.log('[Worker] Starting Mailtide Email Worker');
+console.log(`[Worker] SENDER_EMAIL : ${process.env.SENDER_EMAIL || '⚠️  NOT SET'}`);
+console.log(`[Worker] NODE_ENV     : ${process.env.NODE_ENV}`);
+console.log(`[Worker] BASE_URL     : ${BASE_URL}`);
+console.log(`[Worker] RESEND KEY   : ${process.env.RESEND_API_KEY ? 're_***' + process.env.RESEND_API_KEY.slice(-4) : '⚠️  NOT SET'}`);
+console.log('='.repeat(60));
+
 // Connect to MongoDB
 try {
   await mongoose.connect(MONGODB_URI);
@@ -78,13 +87,14 @@ const processJob = async (bullJob) => {
     if (subscriber.status !== 'active' || subscriber.bounced || subscriber.unsubscribed) {
       job.status = 'skipped';
       await job.save();
+      console.log(`[Worker] Job ${jobId} SKIPPED — subscriber ${subscriber.email} is ${subscriber.status}`);
       return;
     }
 
     // Personalize email body
     let htmlBody = campaign.body;
-    htmlBody = htmlBody.replace(/\{\{\s*name\s*\}\}/g, subscriber.name);
-    htmlBody = htmlBody.replace(/\{\{\s*email\s*\}\}/g, subscriber.email);
+    htmlBody = htmlBody.replace(/(\{\{\s*name\s*\}\})/g, subscriber.name);
+    htmlBody = htmlBody.replace(/(\{\{\s*email\s*\}\})/g, subscriber.email);
 
     // Build and inject unsubscribe link
     const unsubscribeLink = `${BASE_URL}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
@@ -100,17 +110,31 @@ const processJob = async (bullJob) => {
 
     // Append unsubscribe link or replace placeholder
     if (htmlBody.includes('{{unsubscribe}}') || htmlBody.includes('{{ unsubscribe }}')) {
-      htmlBody = htmlBody.replace(/\{\{\s*unsubscribe\s*\}\}/g, unsubscribeLink);
+      htmlBody = htmlBody.replace(/(\{\{\s*unsubscribe\s*\}\})/g, unsubscribeLink);
     } else {
       htmlBody += unsubscribeFooter;
     }
 
+    // ── Diagnostic: log every send attempt ──────────────────────────────────
+    const sender = process.env.SENDER_EMAIL;
+    console.log(`[Worker] SEND ATTEMPT`);
+    console.log(`  Job ID       : ${jobId}`);
+    console.log(`  Campaign ID  : ${campaign._id}`);
+    console.log(`  Subscriber ID: ${subscriber._id}`);
+    console.log(`  From         : ${sender}`);
+    console.log(`  To           : ${subscriber.email}`);
+    console.log(`  Subject      : ${campaign.subject}`);
+
     // Send email using the unified EmailService abstraction layer
     const result = await emailService.sendCampaignEmail(subscriber.email, campaign.subject, htmlBody);
 
+    // ── Diagnostic: log send result ─────────────────────────────────────────
     if (!result.success) {
+      console.error(`[Worker] SEND FAILED  — Job: ${jobId} | To: ${subscriber.email} | Error: ${result.error?.message} (${result.error?.code})`);
       throw new Error(result.error?.message || 'Email delivery failed.');
     }
+
+    console.log(`[Worker] SEND SUCCESS — Job: ${jobId} | To: ${subscriber.email} | Resend ID: ${result.messageId}`);
 
     // Update job status
     job.resendId = result.messageId;
@@ -123,31 +147,49 @@ const processJob = async (bullJob) => {
       { $inc: { totalSent: 1 } }
     );
 
-    // Check if all campaign jobs have completed
-    const remainingJobs = await Job.countDocuments({
-      campaignId: campaign._id,
-      status: 'queued'
-    });
-
-    if (remainingJobs === 0) {
-      await Campaign.updateOne({ _id: campaign._id }, { status: 'sent' });
-      console.log(`Campaign ${campaign._id} sending completed.`);
-    }
-
   } catch (err) {
-    console.error(`Error processing job ${jobId}: ${err.message}`);
+    console.error(`[Worker] ERROR processing job ${jobId}: ${err.message}`);
     // Update job status to failed
     await Job.updateOne({ _id: jobId }, { status: 'failed' });
     throw err;
+  } finally {
+    // ALWAYS check for campaign completion — whether this job succeeded or failed.
+    // Terminal states are: sent, delivered, bounced, failed, skipped.
+    try {
+      const job = await Job.findById(jobId);
+      if (job) {
+        const remainingJobs = await Job.countDocuments({
+          campaignId: job.campaignId,
+          status: 'queued'
+        });
+
+        if (remainingJobs === 0) {
+          const updated = await Campaign.findOneAndUpdate(
+            { _id: job.campaignId, status: { $in: ['sending', 'queued'] } },
+            { $set: { status: 'sent' } },
+            { returnDocument: 'after' }
+          );
+          if (updated) {
+            console.log(`[Worker] Campaign ${job.campaignId} COMPLETED — status set to 'sent'.`);
+          }
+        } else {
+          console.log(`[Worker] Campaign ${job.campaignId} still processing — ${remainingJobs} jobs remaining in queue.`);
+        }
+      }
+    } catch (completionErr) {
+      console.error(`[Worker] Failed to check campaign completion for job ${jobId}: ${completionErr.message}`);
+    }
   }
 };
 
+// Resend free plan allows 2 req/sec. Set BullMQ limiter to 1 email per 600ms
+// (≈1.6/sec) to avoid rate-limit errors when running concurrent jobs.
 const worker = new Worker('mailtide-emails', processJob, {
   connection,
-  concurrency: 5,
+  concurrency: 3,
   limiter: {
-    max: 50,
-    duration: 1000
+    max: 1,       // 1 job per duration window
+    duration: 600 // 600ms → ~1.6 emails/sec → safely under Resend 2 req/sec
   }
 });
 

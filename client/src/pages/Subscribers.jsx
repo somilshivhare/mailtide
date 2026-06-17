@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Search, Plus, Upload, Trash2, Mail, ChevronLeft, ChevronRight, Loader2, Users, CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
+import { Search, Plus, Upload, Trash2, Mail, ChevronLeft, ChevronRight, Loader2, Users, CheckCircle, AlertTriangle, AlertOctagon, Paperclip, X } from 'lucide-react';
 import { subscribersAPI } from '../services/api.js';
 import { Button, Input, Textarea, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../components/ui/custom.jsx';
 import { formatDate, getErrorMessage } from '../lib/utils.js';
@@ -22,6 +22,7 @@ const sendFormSchema = z.object({
 export default function Subscribers() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
+  const attachInputRef = useRef(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -32,6 +33,7 @@ export default function Subscribers() {
   // Custom single email state
   const [sendMailOpen, setSendMailOpen] = useState(false);
   const [selectedSub, setSelectedSub] = useState(null);
+  const [attachments, setAttachments] = useState([]);
 
   // Zod form setup for manual creation
   const {
@@ -82,10 +84,11 @@ export default function Subscribers() {
   });
 
   const sendDirectMutation = useMutation({
-    mutationFn: ({ id, subject, body }) => subscribersAPI.sendDirect(id, subject, body),
+    mutationFn: ({ id, subject, body, files }) => subscribersAPI.sendDirect(id, subject, body, files),
     onSuccess: () => {
       toast.success('Direct email sent successfully!');
       resetSend();
+      setAttachments([]);
       setSendMailOpen(false);
       setSelectedSub(null);
     },
@@ -152,14 +155,14 @@ export default function Subscribers() {
   const pagination = listRes?.pagination || { total: 0, pages: 1 };
 
   return (
-    <div className="space-y-8 p-8 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-in">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-text">Audience</h2>
-          <p className="text-sm text-muted">Manage your contacts and CSV importing.</p>
+          <h2 className="text-xl font-semibold text-text">Subscribers</h2>
+          <p className="text-sm text-muted mt-0.5">Manage your contacts, segments, and CSV imports.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <input
             type="file"
             ref={fileInputRef}
@@ -170,231 +173,163 @@ export default function Subscribers() {
           <Button
             onClick={handleImportClick}
             variant="outline"
+            size="sm"
             disabled={importing}
-            className="gap-2 border-border"
+            className="gap-1.5"
           >
-            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Import contacts
+            {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            Import CSV
           </Button>
-          <Button onClick={() => setAddOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add contacts
+          <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Add Subscriber
           </Button>
         </div>
       </div>
 
       {/* Stats Row */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-border bg-surface p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-muted">Total Subscribers</span>
-            <p className="mt-1 text-2xl font-bold text-text">{stats?.total || 0}</p>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Total', value: stats?.total || 0, icon: Users, color: 'text-accent', bg: 'bg-accent/8' },
+          { label: 'Active', value: stats?.active || 0, icon: CheckCircle, color: 'text-success', bg: 'bg-success-bg' },
+          { label: 'Unsubscribed', value: stats?.unsubscribed || 0, icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-bg' },
+          { label: 'Bounced', value: stats?.invalid || 0, icon: AlertOctagon, color: 'text-danger', bg: 'bg-danger-bg' },
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className="rounded-xl border border-border bg-white shadow-card p-4 flex items-center gap-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg}`}>
+              <Icon className={`h-4 w-4 ${color}`} />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-text leading-none">{value}</p>
+              <p className="text-xs text-muted font-medium mt-0.5">{label}</p>
+            </div>
           </div>
-          <Users className="h-5 w-5 text-muted" />
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-muted">Active</span>
-            <p className="mt-1 text-2xl font-bold text-success">{stats?.active || 0}</p>
-          </div>
-          <CheckCircle className="h-5 w-5 text-success/70" />
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-muted">Unsubscribed</span>
-            <p className="mt-1 text-2xl font-bold text-warning">{stats?.unsubscribed || 0}</p>
-          </div>
-          <AlertTriangle className="h-5 w-5 text-warning/70" />
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-muted">Bounced / Invalid</span>
-            <p className="mt-1 text-2xl font-bold text-danger">{stats?.invalid || 0}</p>
-          </div>
-          <AlertOctagon className="h-5 w-5 text-danger/70" />
-        </div>
+        ))}
       </div>
 
       {/* Filter / Search Bar */}
-      <div className="rounded-lg border border-border bg-surface p-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted">
-            <Search className="h-4 w-4" />
-          </span>
-          <Input
-            placeholder="Search by name, email, or multiple emails..."
-            className="pl-10"
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            className="w-full h-9 pl-9 pr-3 text-sm border border-border rounded-lg bg-white shadow-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
             value={search}
             disabled={stats?.total === 0}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-full sm:w-48">
-          <select
-            className="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1 text-sm text-text focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50"
-            value={statusFilter}
-            disabled={stats?.total === 0}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All contacts</option>
-            <option value="active">Active</option>
-            <option value="unsubscribed">Unsubscribed</option>
-            <option value="invalid">Invalid</option>
-          </select>
-        </div>
+        <select
+          className="h-9 rounded-lg border border-border bg-white px-3 text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent disabled:opacity-50"
+          value={statusFilter}
+          disabled={stats?.total === 0}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+        >
+          <option value="">All contacts</option>
+          <option value="active">Active</option>
+          <option value="unsubscribed">Unsubscribed</option>
+          <option value="invalid">Invalid / Bounced</option>
+        </select>
       </div>
 
       {/* Subscribers Table */}
-      <div className="rounded-lg border border-border bg-surface p-6">
+      <div className="rounded-xl border border-border bg-white shadow-card overflow-hidden">
         {listLoading ? (
           <div className="flex h-48 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            <div className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent/20 border-t-accent animate-spin" />
           </div>
         ) : stats?.total === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-md mx-auto">
-            {/* Modern 3D-like Icon emblem */}
-            <div className="relative mb-6 flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-b from-[#161622] to-[#0d0d14] border border-[#ffffff15] shadow-premium overflow-hidden group">
-              {/* Inner shadow/gradient effects */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-accent/5 to-transparent opacity-60 rounded-2xl" />
-              
-              {/* Stacked metallic hexagons to match the screenshot */}
-              <svg className="w-14 h-14 transition-transform duration-500 group-hover:scale-110" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Outer Hexagon */}
-                <path d="M30 4L52 16.7V42.3L30 55L8 42.3V16.7L30 4Z" fill="url(#hex-grad-1)" stroke="#ffffff10" strokeWidth="1"/>
-                {/* Mid Hexagon */}
-                <path d="M30 11L46 20.2V38.8L30 48L14 38.8V20.2L30 11Z" fill="url(#hex-grad-2)" stroke="#ffffff15" strokeWidth="1"/>
-                {/* Inner Hexagon */}
-                <path d="M30 18L40 23.8V35.2L30 41L20 35.2V23.8L30 18Z" fill="url(#hex-grad-3)" stroke="#7c6aff" strokeWidth="1.5" strokeOpacity="0.8"/>
-                
-                <defs>
-                  <linearGradient id="hex-grad-1" x1="30" y1="4" x2="30" y2="55" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#ffffff" stopOpacity="0.03"/>
-                    <stop offset="1" stopColor="#ffffff" stopOpacity="0.07"/>
-                  </linearGradient>
-                  <linearGradient id="hex-grad-2" x1="30" y1="11" x2="30" y2="48" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#ffffff" stopOpacity="0.05"/>
-                    <stop offset="1" stopColor="#ffffff" stopOpacity="0.12"/>
-                  </linearGradient>
-                  <linearGradient id="hex-grad-3" x1="30" y1="18" x2="30" y2="41" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#7c6aff" stopOpacity="0.4"/>
-                    <stop offset="1" stopColor="#503eff" stopOpacity="0.8"/>
-                  </linearGradient>
-                </defs>
-              </svg>
-              
-              {/* Glowing decorative dot */}
-              <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+            <div className="h-14 w-14 rounded-full bg-gray-100 border border-border flex items-center justify-center mb-4">
+              <Users className="h-6 w-6 text-gray-300" />
             </div>
-
-            {/* Header */}
-            <h3 className="text-xl font-bold tracking-tight text-text mb-2">No contacts yet</h3>
-            
-            {/* Description */}
-            <p className="text-sm text-muted mb-8 leading-relaxed">
-              Add contacts to manage, segment, and reach your audience.
+            <h3 className="text-sm font-semibold text-text mb-1">No contacts yet</h3>
+            <p className="text-xs text-muted mb-5 max-w-xs">
+              Add contacts manually or import from a CSV file to start sending campaigns.
             </p>
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <Button 
-                onClick={() => setAddOpen(true)}
-                className="bg-white text-black hover:bg-white/90 font-medium px-5 py-2.5 rounded-lg border border-transparent shadow-sm flex items-center gap-2 transition-all duration-200"
-              >
-                <Plus className="h-4 w-4" />
-                Add contacts
+            <div className="flex gap-2">
+              <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> Add subscriber
               </Button>
-              <Button 
-                onClick={handleImportClick}
-                variant="outline"
-                disabled={importing}
-                className="border-border hover:bg-white/5 px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200"
-              >
-                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 text-muted" />}
-                Import contacts
+              <Button onClick={handleImportClick} variant="outline" size="sm" disabled={importing} className="gap-1.5">
+                {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                Import CSV
               </Button>
             </div>
           </div>
         ) : listData.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-sm text-muted">No subscribers found matching criteria.</p>
+            <p className="text-sm text-muted">No subscribers found matching your criteria.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Subscribed Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {listData.map((sub) => (
-                  <TableRow key={sub._id}>
-                    <TableCell className="font-medium text-text">{sub.name}</TableCell>
-                    <TableCell className="text-muted">{sub.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={sub.status}>{sub.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted">{formatDate(sub.createdAt).split(',')[0]}</TableCell>
-                    <TableCell className="text-right flex justify-end gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedSub(sub);
-                          setSendMailOpen(true);
-                        }}
-                        disabled={sub.status !== 'active'}
-                        className="text-muted hover:text-accent hover:bg-accent/10 p-1.5 rounded transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none"
-                        title="Send Custom Email"
-                      >
-                        <Mail className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(sub._id)}
-                        className="text-muted hover:text-danger hover:bg-danger/10 p-1.5 rounded transition-all duration-200"
-                        title="Delete Subscriber"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-surface border-b border-border">
+                    {['Name', 'Email', 'Status', 'Joined', 'Actions'].map((h) => (
+                      <th key={h} className={`px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide ${h === 'Actions' ? 'text-right' : 'text-left'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {listData.map((sub) => (
+                    <tr key={sub._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3.5 font-medium text-text">{sub.name}</td>
+                      <td className="px-5 py-3.5 text-muted">{sub.email}</td>
+                      <td className="px-5 py-3.5"><Badge variant={sub.status}>{sub.status}</Badge></td>
+                      <td className="px-5 py-3.5 text-xs text-muted">{formatDate(sub.createdAt).split(',')[0]}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => { setSelectedSub(sub); setSendMailOpen(true); }}
+                            disabled={sub.status !== 'active'}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:text-accent hover:bg-accent/8 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                            title="Send direct email"
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(sub._id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:text-danger hover:bg-danger-bg transition-colors"
+                            title="Delete subscriber"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-            {/* Pagination Controls */}
+            {/* Pagination */}
             {pagination.pages > 1 && (
-              <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4">
-                <span className="text-xs text-muted">Showing page {page} of {pagination.pages}</span>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
+              <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-surface">
+                <p className="text-xs text-muted">
+                  Page {page} of {pagination.pages} · {pagination.total} subscribers
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="h-7 w-7 p-0">
+                    <ChevronLeft className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
-                    disabled={page === pagination.pages}
-                  >
-                    <ChevronRight className="h-4 w-4" />
+                  {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                    const pg = i + 1;
+                    return (
+                      <button key={pg} onClick={() => setPage(pg)}
+                        className={`h-7 w-7 rounded-md text-xs font-medium transition-colors ${ page === pg ? 'bg-accent text-white' : 'text-muted hover:bg-gray-100' }`}
+                      >{pg}</button>
+                    );
+                  })}
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages} className="h-7 w-7 p-0">
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
@@ -448,6 +383,7 @@ export default function Subscribers() {
         setSendMailOpen(val);
         if (!val) {
           resetSend();
+          setAttachments([]);
           setSelectedSub(null);
         }
       }}>
@@ -461,7 +397,8 @@ export default function Subscribers() {
           sendDirectMutation.mutate({
             id: selectedSub._id,
             subject: data.subject,
-            body: data.body
+            body: data.body,
+            files: attachments
           });
         })}>
           <DialogContent className="mt-4 space-y-4">
@@ -477,12 +414,65 @@ export default function Subscribers() {
             <div>
               <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Email Body (HTML/Text)</label>
               <Textarea
-                placeholder="Hello {{name}},\n\nHere is your custom message..."
-                rows={8}
+                placeholder={"Hello {{name}},\n\nHere is your custom message..."}
+                rows={7}
                 {...registerSend('body')}
                 className={sendErrors.body ? 'border-danger' : ''}
               />
               {sendErrors.body && <p className="mt-1.5 text-xs text-danger">{sendErrors.body.message}</p>}
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Attachments (max 5 files, 10 MB each)</label>
+              <input
+                type="file"
+                ref={attachInputRef}
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const newFiles = Array.from(e.target.files || []);
+                  setAttachments((prev) => {
+                    const combined = [...prev, ...newFiles];
+                    if (combined.length > 5) {
+                      toast.error('Maximum 5 attachments allowed.');
+                      return prev;
+                    }
+                    return combined;
+                  });
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => attachInputRef.current?.click()}
+                disabled={attachments.length >= 5}
+                className="flex items-center gap-2 h-8 px-3 text-xs border border-dashed border-border rounded-lg text-muted hover:text-text hover:border-accent hover:bg-accent/5 transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Paperclip className="h-3.5 w-3.5" />
+                Attach files
+              </button>
+
+              {attachments.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {attachments.map((file, idx) => (
+                    <li key={idx} className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Paperclip className="h-3 w-3 text-muted shrink-0" />
+                        <span className="text-xs text-text truncate">{file.name}</span>
+                        <span className="text-[10px] text-muted shrink-0">({(file.size / 1024).toFixed(0)} KB)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-muted hover:text-danger transition-colors shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </DialogContent>
           <DialogFooter className="mt-6">
@@ -491,6 +481,7 @@ export default function Subscribers() {
               variant="outline"
               onClick={() => {
                 resetSend();
+                setAttachments([]);
                 setSendMailOpen(false);
                 setSelectedSub(null);
               }}

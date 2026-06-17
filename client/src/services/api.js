@@ -86,8 +86,17 @@ export const subscribersAPI = {
     const response = await api.get('/api/subscribers/stats');
     return response.data;
   },
-  sendDirect: async (id, subject, body) => {
-    const response = await api.post(`/api/subscribers/${id}/send-direct`, { subject, body });
+  sendDirect: async (id, subject, body, attachments = []) => {
+    const formData = new FormData();
+    formData.append('subject', subject);
+    formData.append('body', body);
+    // Append each File object under the 'attachments' key
+    attachments.forEach((file) => {
+      formData.append('attachments', file);
+    });
+    const response = await api.post(`/api/subscribers/${id}/send-direct`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data;
   }
 };

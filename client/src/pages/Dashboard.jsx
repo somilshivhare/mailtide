@@ -1,30 +1,62 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
-import { Users, Mail, Eye, MousePointer, Plus, Loader2 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Users, Mail, Eye, MousePointer, Plus, ArrowUpRight,
+  TrendingUp, Send, Activity, CheckCircle, Clock
+} from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
+} from 'recharts';
 import { analyticsAPI, campaignsAPI } from '../services/api.js';
 import StatsCard from '../components/StatsCard.jsx';
 import ChartCard from '../components/ChartCard.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Button } from '../components/ui/custom.jsx';
 import { formatDate, formatPercent } from '../lib/utils.js';
 
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-white shadow-dropdown px-3 py-2 text-xs">
+      <p className="text-muted font-medium mb-1">{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} className="text-text font-semibold" style={{ color: p.color }}>
+          {p.name}: <span className="text-text">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ─── Activity Feed Item ───────────────────────────────────────────────────────
+function ActivityItem({ icon: Icon, text, time, color }) {
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-border/60 last:border-0">
+      <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${color}`}>
+        <Icon className="h-3 w-3" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-text leading-snug">{text}</p>
+        <p className="text-xs text-muted mt-0.5">{time}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  // Query 1: Overview KPIs
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['analytics-overview'],
     queryFn: analyticsAPI.getOverview
   });
 
-  // Query 2: Recent campaigns (page 1, limit 5)
   const { data: campaignsRes, isLoading: campaignsLoading } = useQuery({
     queryKey: ['recent-campaigns'],
     queryFn: () => campaignsAPI.getAll(1, 5)
   });
 
-  // Query 3: Subscriber Growth last 30 days
   const { data: growthData, isLoading: growthLoading } = useQuery({
     queryKey: ['subscribers-growth'],
     queryFn: analyticsAPI.getGrowth
@@ -32,206 +64,198 @@ export default function Dashboard() {
 
   const isLoading = overviewLoading || campaignsLoading || growthLoading;
 
-  if (isLoading) {
-    return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-          <span className="text-sm text-muted">Loading your workspace...</span>
-        </div>
-      </div>
-    );
-  }
-
   const kpis = [
     {
       title: 'Total Subscribers',
       value: overview?.totalSubscribers ?? 0,
-      description: 'Active subscribers receiving campaigns',
+      description: 'Active list size',
       icon: Users,
-      trend: 'Active',
-      trendType: 'positive'
+      trend: 'All time',
+      trendType: 'neutral'
     },
     {
       title: 'Campaigns Sent',
       value: overview?.totalCampaigns ?? 0,
-      description: 'Total email newsletters dispatched',
-      icon: Mail,
-      trend: 'Sent',
+      description: 'Total dispatched',
+      icon: Send,
+      trend: 'All time',
       trendType: 'neutral'
     },
     {
       title: 'Avg. Open Rate',
       value: formatPercent(overview?.avgOpenRate),
-      description: 'Percentage of emails opened',
+      description: 'Across all campaigns',
       icon: Eye,
-      trend: overview?.avgOpenRate > 30 ? 'Strong' : 'Healthy',
-      trendType: overview?.avgOpenRate > 30 ? 'positive' : 'neutral'
+      trend: overview?.avgOpenRate > 25 ? 'Above average' : 'Industry avg ~25%',
+      trendType: overview?.avgOpenRate > 25 ? 'positive' : 'neutral'
     },
     {
       title: 'Avg. Click Rate',
       value: formatPercent(overview?.avgClickRate),
-      description: 'Percentage of link clicks',
+      description: 'Across all campaigns',
       icon: MousePointer,
-      trend: overview?.avgClickRate > 5 ? 'High' : 'Normal',
-      trendType: overview?.avgClickRate > 5 ? 'positive' : 'neutral'
+      trend: overview?.avgClickRate > 3 ? 'Above average' : 'Industry avg ~3%',
+      trendType: overview?.avgClickRate > 3 ? 'positive' : 'neutral'
     }
   ];
 
   const recentCampaigns = campaignsRes?.campaigns || [];
 
-  return (
-    <div className="space-y-8 p-8 max-w-7xl mx-auto">
-      {/* Welcome header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-text">Overview</h2>
-          <p className="text-sm text-muted">Monitor subscriber performance and email campaign dispatches.</p>
+  // Build activity feed from recent campaigns
+  const activityFeed = recentCampaigns.slice(0, 5).map((c) => {
+    if (c.status === 'sent') return { icon: CheckCircle, text: `Campaign "${c.title}" sent to ${c.totalSubscribers} subscribers`, time: formatDate(c.sentAt || c.createdAt), color: 'bg-success/10 text-success' };
+    if (c.status === 'sending' || c.status === 'queued') return { icon: Activity, text: `Campaign "${c.title}" is dispatching`, time: formatDate(c.createdAt), color: 'bg-warning/10 text-warning' };
+    return { icon: Clock, text: `Draft "${c.title}" created`, time: formatDate(c.createdAt), color: 'bg-gray-100 text-muted' };
+  });
+
+  // Normalize growth data for chart
+  const chartData = (growthData || []).map((d) => ({
+    date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    Subscribers: d.totalSubscribers
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[calc(100vh-56px)] items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent/20 border-t-accent animate-spin" />
+          <p className="mt-3 text-sm text-muted">Loading dashboard...</p>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => navigate('/campaigns')} variant="outline" size="sm">
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
+
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-text">Overview</h2>
+          <p className="text-sm text-muted mt-0.5">Monitor subscriber performance and email campaigns.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/campaigns')}>
             Manage Campaigns
           </Button>
-          <Button onClick={() => navigate('/campaigns?create=true')} size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
+          <Button size="sm" onClick={() => navigate('/campaigns?create=true')} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
             New Campaign
           </Button>
         </div>
       </div>
 
-      {/* KPI Row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, idx) => (
-          <StatsCard key={idx} {...kpi} />
-        ))}
+      {/* ── KPI Row ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpis.map((kpi, i) => <StatsCard key={i} {...kpi} />)}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Subscriber Growth Chart (Span 2) */}
+      {/* ── Charts row ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Subscriber Growth — spans 2 cols */}
         <ChartCard
           title="Subscriber Growth"
-          description="Cumulative active subscribers over the last 30 days"
+          description="Cumulative active subscribers — last 30 days"
           className="lg:col-span-2"
+          height={220}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={growthData || []}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-              <XAxis 
-                dataKey="date" 
-                stroke="#8888aa" 
-                fontSize={10} 
-                tickLine={false} 
-                axisLine={false}
-                tickFormatter={(str) => {
-                  const d = new Date(str);
-                  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                }}
-              />
-              <YAxis stroke="#8888aa" fontSize={10} tickLine={false} axisLine={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#111118', borderColor: '#ffffff10', borderRadius: '6px' }}
-                labelStyle={{ fontSize: '12px', color: '#8888aa', fontWeight: 'bold' }}
-                itemStyle={{ fontSize: '12px', color: '#7c6aff' }}
-                labelFormatter={(label) => formatDate(label).split(',')[0]}
-              />
-              <Line
+            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+              <defs>
+                <linearGradient id="subGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366F1" stopOpacity={0.12} />
+                  <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Area
                 type="monotone"
-                dataKey="totalSubscribers"
-                name="Total Subscribers"
-                stroke="#7c6aff"
-                strokeWidth={3}
+                dataKey="Subscribers"
+                stroke="#6366F1"
+                strokeWidth={2}
+                fill="url(#subGrad)"
                 dot={false}
-                activeDot={{ r: 6, fill: '#7c6aff', stroke: '#0a0a0f', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: '#6366F1', strokeWidth: 0 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Quick Stats Panel (Span 1) */}
-        <div className="rounded-lg border border-border bg-surface p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-semibold tracking-tight text-text mb-4">Quick Insights</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-border/50">
-                <span className="text-xs text-muted">Audience Status</span>
-                <span className="text-xs font-semibold text-success">Healthy Deliverability</span>
-              </div>
-              <div className="flex justify-between items-center pb-3 border-b border-border/50">
-                <span className="text-xs text-muted">List Engagement</span>
-                <span className="text-xs font-semibold text-text">
-                  {overview?.avgOpenRate > 25 ? 'High Open Rates' : 'Standard Open Rates'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted">AI Capabilities</span>
-                <span className="text-xs font-semibold text-accent">Claude 3.5 Active</span>
-              </div>
-            </div>
+        {/* Activity feed — 1 col */}
+        <div className="rounded-xl border border-border bg-white shadow-card flex flex-col">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text">Recent Activity</h3>
+            <Activity className="h-4 w-4 text-muted" />
           </div>
-          <div className="mt-8 border-t border-border pt-4">
-            <p className="text-xs text-muted leading-relaxed mb-4">
-              Need inspiration? Let Claude write a personalized conversion newsletter for your audience.
-            </p>
-            <Link to="/campaigns?create=true">
-              <Button variant="outline" size="sm" className="w-full text-accent border-accent/20 bg-accent/5 hover:bg-accent/10">
-                Draft with AI Copywriter
-              </Button>
-            </Link>
+          <div className="flex-1 px-5 py-2 overflow-y-auto">
+            {activityFeed.length === 0 ? (
+              <p className="text-sm text-muted py-6 text-center">No activity yet.</p>
+            ) : (
+              activityFeed.map((item, i) => <ActivityItem key={i} {...item} />)
+            )}
           </div>
         </div>
       </div>
 
-      {/* Recent campaigns Table */}
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <div className="flex items-center justify-between mb-6">
+      {/* ── Recent campaigns table ── */}
+      <div className="rounded-xl border border-border bg-white shadow-card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h3 className="text-sm font-semibold tracking-tight text-text">Recent Campaigns</h3>
-            <p className="text-xs text-muted">Performance summaries of your five latest campaign newsletters</p>
+            <h3 className="text-sm font-semibold text-text">Recent Campaigns</h3>
+            <p className="text-xs text-muted mt-0.5">Performance of your latest 5 newsletters</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => navigate('/campaigns')}>
-            View All
+          <Button variant="outline" size="sm" onClick={() => navigate('/campaigns')} className="gap-1">
+            View all
+            <ArrowUpRight className="h-3 w-3" />
           </Button>
         </div>
 
         {recentCampaigns.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-muted">No campaigns created yet.</p>
-            <Button onClick={() => navigate('/campaigns?create=true')} variant="outline" size="sm" className="mt-4">
-              Create First Campaign
+          <div className="py-16 text-center">
+            <Mail className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-muted">No campaigns yet.</p>
+            <Button onClick={() => navigate('/campaigns?create=true')} variant="outline" size="sm" className="mt-3">
+              Create first campaign
             </Button>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Recipients</TableHead>
-                <TableHead>Open Rate</TableHead>
-                <TableHead>Click Rate</TableHead>
-                <TableHead>Created At</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentCampaigns.map((c) => {
-                const openRate = c.totalDelivered > 0 ? (c.totalOpened / c.totalDelivered) * 100 : 0;
-                const clickRate = c.totalDelivered > 0 ? (c.totalClicked / c.totalDelivered) * 100 : 0;
-                return (
-                  <TableRow key={c._id} className="cursor-pointer" onClick={() => navigate(`/campaigns/${c._id}`)}>
-                    <TableCell className="font-medium text-text">{c.title}</TableCell>
-                    <TableCell><Badge variant={c.status}>{c.status}</Badge></TableCell>
-                    <TableCell>{c.totalSubscribers || '-'}</TableCell>
-                    <TableCell>{c.status === 'draft' ? '-' : formatPercent(openRate)}</TableCell>
-                    <TableCell>{c.status === 'draft' ? '-' : formatPercent(clickRate)}</TableCell>
-                    <TableCell className="text-muted text-xs">{formatDate(c.createdAt).split(',')[0]}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-surface border-b border-border">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide">Campaign</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide">Status</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide">Audience</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide">Open Rate</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide">Click Rate</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {recentCampaigns.map((c) => {
+                  const openRate = c.totalDelivered > 0 ? (c.totalOpened / c.totalDelivered) * 100 : 0;
+                  const clickRate = c.totalDelivered > 0 ? (c.totalClicked / c.totalDelivered) * 100 : 0;
+                  return (
+                    <tr
+                      key={c._id}
+                      className="cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => navigate(`/campaigns/${c._id}`)}
+                    >
+                      <td className="px-5 py-3.5 font-medium text-text">{c.title}</td>
+                      <td className="px-5 py-3.5"><Badge variant={c.status}>{c.status}</Badge></td>
+                      <td className="px-5 py-3.5 text-muted">{c.totalSubscribers || '—'}</td>
+                      <td className="px-5 py-3.5 text-muted">{c.status === 'draft' ? '—' : formatPercent(openRate)}</td>
+                      <td className="px-5 py-3.5 text-muted">{c.status === 'draft' ? '—' : formatPercent(clickRate)}</td>
+                      <td className="px-5 py-3.5 text-xs text-muted">{formatDate(c.sentAt || c.createdAt).split(',')[0]}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
