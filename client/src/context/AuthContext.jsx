@@ -9,9 +9,19 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const loadUser = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
         const res = await axios.get(`${baseUrl}/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
           withCredentials: true
         });
         setUser(res.data);
