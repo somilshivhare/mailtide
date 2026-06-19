@@ -42,8 +42,45 @@ const connection = new Redis(REDIS_URL, {
 });
 
 connection.on('error', (err) => {
-  console.error(`Redis worker connection error: ${err.message}`);
+  console.error(`Redis email worker connection error: ${err.message}`);
 });
+
+const schedulerConnection = new Redis(REDIS_URL, {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
+});
+
+schedulerConnection.on('error', (err) => {
+  console.error(`Redis scheduler worker connection error: ${err.message}`);
+});
+
+/**
+ * Helper to check campaign completion and update campaign status
+ */
+const checkCampaignCompletion = async (campaignId) => {
+  try {
+    const remainingJobs = await Job.countDocuments({
+      campaignId,
+      status: 'queued'
+    });
+
+    if (remainingJobs === 0) {
+      const updated = await Campaign.findOneAndUpdate(
+        { _id: campaignId, status: { $in: ['sending', 'queued'] } },
+        { $set: { status: 'sent' } },
+        { returnDocument: 'after' }
+      );
+      if (updated) {
+        console.log(`[Worker] Campaign ${campaignId} COMPLETED — status set to 'sent'.`);
+      }
+    } else {
+      console.log(`[Worker] Campaign ${campaignId} still processing — ${remainingJobs} jobs remaining in queue.`);
+    }
+  } catch (err) {
+    console.error(`[Worker] Failed to check campaign completion for campaign ${campaignId}: ${err.message}`);
+  }
+};
 
 /**
  * Job processing function
@@ -72,6 +109,7 @@ const processJob = async (bullJob) => {
     if (!campaign || !subscriber) {
       job.status = 'failed';
       await job.save();
+      await checkCampaignCompletion(job.campaignId);
       return;
     }
 
@@ -79,6 +117,7 @@ const processJob = async (bullJob) => {
     if (campaign.status === 'draft') {
       job.status = 'skipped';
       await job.save();
+      await checkCampaignCompletion(job.campaignId);
       return;
     }
 
@@ -92,6 +131,7 @@ const processJob = async (bullJob) => {
       job.status = 'skipped';
       await job.save();
       console.log(`[Worker] Job ${jobId} SKIPPED — subscriber ${subscriber.email} is ${subscriber.status}`);
+      await checkCampaignCompletion(job.campaignId);
       return;
     }
 
@@ -151,58 +191,50 @@ const processJob = async (bullJob) => {
       { $inc: { totalSent: 1 } }
     );
 
+    // Check campaign completion on success
+    await checkCampaignCompletion(job.campaignId);
+
   } catch (err) {
     console.error(`[Worker] ERROR processing job ${jobId}: ${err.message}`);
-    // Update job status to failed
-    await Job.updateOne({ _id: jobId }, { status: 'failed' });
     throw err;
-  } finally {
-    // ALWAYS check for campaign completion — whether this job succeeded or failed.
-    // Terminal states are: sent, delivered, bounced, failed, skipped.
-    try {
-      const job = await Job.findById(jobId);
-      if (job) {
-        const remainingJobs = await Job.countDocuments({
-          campaignId: job.campaignId,
-          status: 'queued'
-        });
-
-        if (remainingJobs === 0) {
-          const updated = await Campaign.findOneAndUpdate(
-            { _id: job.campaignId, status: { $in: ['sending', 'queued'] } },
-            { $set: { status: 'sent' } },
-            { returnDocument: 'after' }
-          );
-          if (updated) {
-            console.log(`[Worker] Campaign ${job.campaignId} COMPLETED — status set to 'sent'.`);
-          }
-        } else {
-          console.log(`[Worker] Campaign ${job.campaignId} still processing — ${remainingJobs} jobs remaining in queue.`);
-        }
-      }
-    } catch (completionErr) {
-      console.error(`[Worker] Failed to check campaign completion for job ${jobId}: ${completionErr.message}`);
-    }
   }
 };
 
-// Resend free plan allows 2 req/sec. Set BullMQ limiter to 1 email per 600ms
-// (≈1.6/sec) to avoid rate-limit errors when running concurrent jobs.
 const worker = new Worker('mailtide-emails', processJob, {
   connection,
   concurrency: 3,
   limiter: {
     max: 1,       // 1 job per duration window
     duration: 600 // 600ms → ~1.6 emails/sec → safely under Resend 2 req/sec
-  }
+  },
+  drainDelay: 30,
+  stalledInterval: 300000
 });
 
 worker.on('completed', (job) => {
   console.log(`Job ${job.id} completed successfully`);
 });
 
-worker.on('failed', (job, err) => {
+worker.on('failed', async (job, err) => {
   console.error(`Job ${job?.id ?? 'unknown'} failed: ${err.message}`);
+  if (job && job.attemptsMade >= job.opts.attempts) {
+    const { jobId } = job.data;
+    try {
+      const dbJob = await Job.findByIdAndUpdate(
+        jobId,
+        { status: 'failed' },
+        { returnDocument: 'after' }
+      );
+      if (dbJob) {
+        console.log(`[Worker] Job ${jobId} failed permanently after ${job.attemptsMade} attempts.`);
+        await checkCampaignCompletion(dbJob.campaignId);
+      }
+    } catch (dbErr) {
+      console.error(`[Worker] Failed to update job ${jobId} to failed status in DB: ${dbErr.message}`);
+    }
+  } else if (job) {
+    console.log(`[Worker] Job ${job.id} failed, will retry. Attempt ${job.attemptsMade} of ${job.opts.attempts}`);
+  }
 });
 
 worker.on('error', (err) => {
@@ -280,8 +312,10 @@ const processScheduleJob = async (bullJob) => {
 };
 
 const schedulerWorker = new Worker('mailtide-campaign-scheduler', processScheduleJob, {
-  connection,
-  concurrency: 2
+  connection: schedulerConnection,
+  concurrency: 2,
+  drainDelay: 30,
+  stalledInterval: 300000
 });
 
 schedulerWorker.on('completed', (job) => {
@@ -301,6 +335,7 @@ const shutdown = async () => {
     await worker.close();
     await schedulerWorker.close();
     await connection.quit();
+    await schedulerConnection.quit();
     await mongoose.disconnect();
     console.log('Worker and Scheduler shutdown successfully.');
     process.exit(0);

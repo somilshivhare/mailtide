@@ -24,7 +24,7 @@ const CampaignSchema = new Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'queued', 'sending', 'sent', 'failed'],
+    enum: ['draft', 'scheduled', 'queued', 'sending', 'sent', 'failed'],
     default: 'draft'
   },
   totalSubscribers: {
