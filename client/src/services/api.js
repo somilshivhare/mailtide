@@ -168,8 +168,21 @@ export const analyticsAPI = {
 };
 
 export const aiAPI = {
-  writeCampaign: async (topic, tone, audience, type, prompt) => {
-    const response = await api.post('/api/ai/write-campaign', { topic, tone, audience, type, prompt });
+  writeCampaign: async (topic, tone, audience, type, prompt, goal, ctaType, brandVoice, inboxStyle, deliverabilityMode, industry, emailLength) => {
+    const response = await api.post('/api/ai/write-campaign', {
+      topic,
+      tone,
+      audience,
+      type,
+      prompt,
+      goal,
+      ctaType,
+      brandVoice,
+      inboxStyle,
+      deliverabilityMode,
+      industry,
+      emailLength
+    });
     return response.data;
   },
   optimizeSubject: async (subjectLine) => {

@@ -10,14 +10,40 @@ const router = Router();
  * Generates an email campaign topic, subject, and body using Claude.
  */
 router.post('/write-campaign', auth, async (req, res) => {
-  const { topic, tone, audience, type, prompt } = req.body;
+  const { 
+    topic, 
+    tone, 
+    audience, 
+    type, 
+    prompt, 
+    goal, 
+    ctaType, 
+    brandVoice, 
+    inboxStyle, 
+    deliverabilityMode,
+    industry,
+    emailLength
+  } = req.body;
 
   if (!topic || !tone || !audience) {
     return res.status(400).json({ error: 'Topic, tone, and audience are required' });
   }
 
   try {
-    const result = await writeCampaign(topic, tone, audience, type, prompt);
+    const result = await writeCampaign(
+      topic,
+      tone,
+      audience,
+      type,
+      prompt,
+      goal,
+      ctaType,
+      brandVoice,
+      inboxStyle,
+      deliverabilityMode,
+      industry,
+      emailLength
+    );
     res.status(200).json(result);
   } catch (err) {
     console.error(`AI Campaign Generation error: ${err.message}`);

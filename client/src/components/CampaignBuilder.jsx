@@ -6,9 +6,9 @@ import ReactQuill from 'react-quill';
 import { Sparkles, Loader2, Save, Send, Wand2, FileImage, Check, ArrowRight, Image } from 'lucide-react';
 import { toast } from 'sonner';
 import { aiAPI, campaignsAPI } from '../services/api.js';
-import { getErrorMessage } from '../lib/utils.js';
+import { getErrorMessage, cn } from '../lib/utils.js';
 import SubjectOptimizer from './SubjectOptimizer.jsx';
-import { Button, Input, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter, Select, Textarea } from './ui/custom.jsx';
+import { Button, Input, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter, Select, Textarea, Card, CardHeader, CardTitle, CardContent } from './ui/custom.jsx';
 
 const campaignSchema = z.object({
   title: z.string().min(1, 'Campaign title is required'),
@@ -24,6 +24,15 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
   const [aiAudience, setAiAudience] = useState('');
   const [aiType, setAiType] = useState('Newsletter');
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiGoal, setAiGoal] = useState('Educate');
+  const [aiCta, setAiCta] = useState('Reply');
+  const [aiBrandVoice, setAiBrandVoice] = useState('Founder');
+  const [aiInboxStyle, setAiInboxStyle] = useState('Newsletter');
+  const [aiDeliverabilityMode, setAiDeliverabilityMode] = useState('Balanced');
+  const [aiIndustry, setAiIndustry] = useState('SaaS');
+  const [aiLength, setAiLength] = useState('Medium');
+  const [aiReasoning, setAiReasoning] = useState('');
+  const [aiDeliverability, setAiDeliverability] = useState(null);
   const [aiError, setAiError] = useState('');
 
   // Quill Editor Ref
@@ -79,15 +88,37 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
     setAiError('');
     setAiLoading(true);
     try {
-      const result = await aiAPI.writeCampaign(aiTopic, aiTone, aiAudience, aiType, aiPrompt);
+      const result = await aiAPI.writeCampaign(
+        aiTopic,
+        aiTone,
+        aiAudience,
+        aiType,
+        aiPrompt,
+        aiGoal,
+        aiCta,
+        aiBrandVoice,
+        aiInboxStyle,
+        aiDeliverabilityMode,
+        aiIndustry,
+        aiLength
+      );
       setValue('subject', result.subject, { shouldValidate: true });
       setValue('body', result.body, { shouldValidate: true });
+      setAiReasoning(result.reasoning || '');
+      setAiDeliverability(result.deliverability || null);
       setAiOpen(false);
       // Reset AI form fields
       setAiTopic('');
       setAiAudience('');
       setAiPrompt('');
       setAiType('Newsletter');
+      setAiGoal('Educate');
+      setAiCta('Reply');
+      setAiBrandVoice('Founder');
+      setAiInboxStyle('Newsletter');
+      setAiDeliverabilityMode('Balanced');
+      setAiIndustry('SaaS');
+      setAiLength('Medium');
     } catch (err) {
       setAiError('Failed to generate campaign. Please check your AI API key.');
     } finally {
@@ -316,6 +347,70 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
             )}
           />
           {errors.body && <p className="mt-1.5 text-xs text-danger">{errors.body.message}</p>}
+
+          { (aiReasoning || aiDeliverability) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 border-t border-border/40 pt-5">
+              {/* AI Reasoning Panel */}
+              {aiReasoning && (
+                <Card className="bg-surface border-border p-5 rounded-xl">
+                  <CardHeader className="p-0 pb-3 border-none flex flex-row items-center gap-2">
+                    <Sparkles className="h-4.5 w-4.5 text-accent" />
+                    <CardTitle className="text-xs font-bold text-text uppercase tracking-wider m-0">
+                      AI Copywriting Insights
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 text-xs text-muted leading-relaxed whitespace-pre-line">
+                    {aiReasoning}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Deliverability Insights Panel */}
+              {aiDeliverability && (
+                <Card className="bg-surface border-border p-5 rounded-xl">
+                  <CardHeader className="p-0 pb-3 border-none flex flex-row items-center gap-2">
+                    <Send className="h-4.5 w-4.5 text-success" />
+                    <CardTitle className="text-xs font-bold text-text uppercase tracking-wider m-0">
+                      Gmail Deliverability Insights
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 space-y-4">
+                    <div className="flex gap-4 items-center">
+                      <div className="flex-1 bg-white/[0.02] border border-border/60 rounded-lg p-3 text-center">
+                        <span className="block text-[10px] font-bold text-muted uppercase tracking-wider">Deliverability Score</span>
+                        <span className={cn(
+                          "block text-2xl font-extrabold mt-1",
+                          aiDeliverability.deliverabilityScore >= 90 ? "text-success" : aiDeliverability.deliverabilityScore >= 70 ? "text-warning" : "text-danger"
+                        )}>
+                          {aiDeliverability.deliverabilityScore} / 100
+                        </span>
+                      </div>
+                      <div className="flex-1 bg-white/[0.02] border border-border/60 rounded-lg p-3 text-center">
+                        <span className="block text-[10px] font-bold text-muted uppercase tracking-wider">Promotions Risk</span>
+                        <span className={cn(
+                          "block text-lg font-extrabold mt-1.5 uppercase",
+                          aiDeliverability.promotionsRisk === 'Low' ? "text-success" : aiDeliverability.promotionsRisk === 'Medium' ? "text-warning" : "text-danger"
+                        )}>
+                          {aiDeliverability.promotionsRisk}
+                        </span>
+                      </div>
+                    </div>
+
+                    {aiDeliverability.deliverabilitySuggestions && aiDeliverability.deliverabilitySuggestions.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="block text-[10px] font-bold text-muted uppercase tracking-wider">Key Recommendations</span>
+                        <ul className="list-disc pl-4 space-y-1 text-xs text-muted">
+                          {aiDeliverability.deliverabilitySuggestions.map((suggestion, idx) => (
+                            <li key={idx} className="leading-relaxed">{suggestion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-border/50 pt-5">
@@ -333,7 +428,7 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
       </form>
 
       {/* Write with AI Dialog */}
-      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+      <Dialog open={aiOpen} onOpenChange={setAiOpen} className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-accent" />
@@ -342,9 +437,9 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
         </DialogHeader>
         <DialogContent className="mt-4">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Campaign Type</label>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Campaign Type</label>
                 <Select value={aiType} onChange={(e) => setAiType(e.target.value)}>
                   <option value="Newsletter">Newsletter</option>
                   <option value="Product Launch">Product Launch</option>
@@ -359,7 +454,84 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Copywriting Tone</label>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Goal</label>
+                <Select value={aiGoal} onChange={(e) => setAiGoal(e.target.value)}>
+                  <option value="Educate">Educate</option>
+                  <option value="Sell">Sell</option>
+                  <option value="Announce">Announce</option>
+                  <option value="Engage">Engage</option>
+                  <option value="Retain">Retain</option>
+                  <option value="Convert">Convert</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">CTA Type</label>
+                <Select value={aiCta} onChange={(e) => setAiCta(e.target.value)}>
+                  <option value="Reply">Reply</option>
+                  <option value="Visit Website">Visit Website</option>
+                  <option value="Read Blog">Read Blog</option>
+                  <option value="Book Demo">Book Demo</option>
+                  <option value="Join Waitlist">Join Waitlist</option>
+                  <option value="Start Free Trial">Start Free Trial</option>
+                  <option value="Download Resource">Download Resource</option>
+                  <option value="Contact Team">Contact Team</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Brand Voice</label>
+                <Select value={aiBrandVoice} onChange={(e) => setAiBrandVoice(e.target.value)}>
+                  <option value="Founder">Founder Style</option>
+                  <option value="Startup">Startup Style</option>
+                  <option value="Technical">Technical</option>
+                  <option value="Corporate">Corporate</option>
+                  <option value="Community">Community</option>
+                  <option value="Educational">Educational</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Inbox Style</label>
+                <Select value={aiInboxStyle} onChange={(e) => setAiInboxStyle(e.target.value)}>
+                  <option value="Personal Email">Personal Email</option>
+                  <option value="Founder Update">Founder Update</option>
+                  <option value="Community Update">Community Update</option>
+                  <option value="Newsletter">Newsletter</option>
+                  <option value="Marketing Campaign">Marketing Campaign</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Deliverability Mode</label>
+                <Select value={aiDeliverabilityMode} onChange={(e) => setAiDeliverabilityMode(e.target.value)}>
+                  <option value="Max Inbox Placement">Max Inbox Placement</option>
+                  <option value="Balanced">Balanced</option>
+                  <option value="Marketing">Marketing</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Industry</label>
+                <Select value={aiIndustry} onChange={(e) => setAiIndustry(e.target.value)}>
+                  <option value="SaaS">SaaS</option>
+                  <option value="E-commerce">E-commerce</option>
+                  <option value="Education">Education</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Technology">Technology</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Agency">Agency</option>
+                  <option value="Nonprofit">Nonprofit</option>
+                  <option value="Custom">Custom</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Email Length</label>
+                <Select value={aiLength} onChange={(e) => setAiLength(e.target.value)}>
+                  <option value="Short">Short (50-150 words)</option>
+                  <option value="Medium">Medium (150-300 words)</option>
+                  <option value="Long">Long (300-700 words)</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1">Tone</label>
                 <Select value={aiTone} onChange={(e) => setAiTone(e.target.value)}>
                   <option value="professional">Professional & Direct</option>
                   <option value="casual">Friendly & Casual</option>
@@ -432,13 +604,16 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Select Tone / Style</label>
                 <Select value={selectedTone} onChange={(e) => setSelectedTone(e.target.value)}>
-                  <option value="professional">Professional</option>
-                  <option value="casual">Casual & Friendly</option>
-                  <option value="persuasive">Persuasive & Sales-oriented</option>
-                  <option value="shorter">Shorter & Conciser</option>
-                  <option value="longer">Longer & Detailed</option>
-                  <option value="urgent">Urgent & Time-sensitive</option>
-                  <option value="friendly">Friendly & Warm</option>
+                  <option value="More Professional">More Professional</option>
+                  <option value="More Technical">More Technical</option>
+                  <option value="More Human">More Human</option>
+                  <option value="More Persuasive">More Persuasive</option>
+                  <option value="Shorter">Shorter</option>
+                  <option value="Longer">Longer</option>
+                  <option value="Improve CTA">Improve CTA</option>
+                  <option value="Improve Open Rate">Improve Open Rate</option>
+                  <option value="Founder Style">Founder Style</option>
+                  <option value="Startup Style">Startup Style</option>
                 </Select>
               </div>
               {rewriteError && <p className="text-xs text-danger">{rewriteError}</p>}
