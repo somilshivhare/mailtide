@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { aiAPI, campaignsAPI } from '../services/api.js';
 import { getErrorMessage } from '../lib/utils.js';
 import SubjectOptimizer from './SubjectOptimizer.jsx';
-import { Button, Input, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter, Select } from './ui/custom.jsx';
+import { Button, Input, Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter, Select, Textarea } from './ui/custom.jsx';
 
 const campaignSchema = z.object({
   title: z.string().min(1, 'Campaign title is required'),
@@ -22,6 +22,8 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
   const [aiTopic, setAiTopic] = useState('');
   const [aiTone, setAiTone] = useState('professional');
   const [aiAudience, setAiAudience] = useState('');
+  const [aiType, setAiType] = useState('Newsletter');
+  const [aiPrompt, setAiPrompt] = useState('');
   const [aiError, setAiError] = useState('');
 
   // Quill Editor Ref
@@ -77,13 +79,15 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
     setAiError('');
     setAiLoading(true);
     try {
-      const result = await aiAPI.writeCampaign(aiTopic, aiTone, aiAudience);
+      const result = await aiAPI.writeCampaign(aiTopic, aiTone, aiAudience, aiType, aiPrompt);
       setValue('subject', result.subject, { shouldValidate: true });
       setValue('body', result.body, { shouldValidate: true });
       setAiOpen(false);
       // Reset AI form fields
       setAiTopic('');
       setAiAudience('');
+      setAiPrompt('');
+      setAiType('Newsletter');
     } catch (err) {
       setAiError('Failed to generate campaign. Please check your AI API key.');
     } finally {
@@ -338,6 +342,33 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
         </DialogHeader>
         <DialogContent className="mt-4">
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Campaign Type</label>
+                <Select value={aiType} onChange={(e) => setAiType(e.target.value)}>
+                  <option value="Newsletter">Newsletter</option>
+                  <option value="Product Launch">Product Launch</option>
+                  <option value="Feature Update">Feature Update</option>
+                  <option value="Promotion">Promotion</option>
+                  <option value="Event Invitation">Event Invitation</option>
+                  <option value="Welcome Email">Welcome Email</option>
+                  <option value="Re-engagement">Re-engagement</option>
+                  <option value="Announcement">Announcement</option>
+                  <option value="Educational">Educational</option>
+                  <option value="Custom">Custom</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Copywriting Tone</label>
+                <Select value={aiTone} onChange={(e) => setAiTone(e.target.value)}>
+                  <option value="professional">Professional & Direct</option>
+                  <option value="casual">Friendly & Casual</option>
+                  <option value="witty">Witty & Creative</option>
+                  <option value="urgent">Urgent & Direct</option>
+                  <option value="educational">Educational & Instructive</option>
+                </Select>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">What is this campaign about?</label>
               <Input
@@ -355,14 +386,13 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Copywriting Tone</label>
-              <Select value={aiTone} onChange={(e) => setAiTone(e.target.value)}>
-                <option value="professional">Professional & Direct</option>
-                <option value="casual">Friendly & Casual</option>
-                <option value="witty">Witty & Creative</option>
-                <option value="urgent">Urgent & Direct</option>
-                <option value="educational">Educational & Instructive</option>
-              </Select>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Custom Instructions (Optional AI Prompt)</label>
+              <Textarea
+                placeholder="e.g. Write about Redis + BullMQ reliability improvements and mention we fixed the stalled jobs issue."
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                className="min-h-[70px] resize-y"
+              />
             </div>
             {aiError && <p className="text-xs text-danger">{aiError}</p>}
           </div>

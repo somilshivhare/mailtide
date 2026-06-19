@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Mail, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Search, Filter } from 'lucide-react';
+import { Plus, Mail, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Search, Filter, Trash2 } from 'lucide-react';
 import { useCampaign } from '../hooks/useCampaign.js';
 import { toast } from 'sonner';
 import CampaignBuilder from '../components/CampaignBuilder.jsx';
@@ -19,7 +19,7 @@ export default function Campaigns() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
 
-  const { useCampaignsQuery, createCampaignMutation, sendCampaignMutation } = useCampaign();
+  const { useCampaignsQuery, createCampaignMutation, sendCampaignMutation, deleteCampaignMutation } = useCampaign();
   const { data: listRes, isLoading: listLoading, refetch } = useCampaignsQuery(page, 10, statusFilter);
 
   useEffect(() => {
@@ -42,6 +42,17 @@ export default function Campaigns() {
       navigate(`/campaigns/${campaign._id}`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to dispatch.'));
+    }
+  };
+
+  const handleDeleteDraft = async (id, title) => {
+    if (window.confirm(`Are you sure you want to delete the draft "${title}"?`)) {
+      try {
+        await deleteCampaignMutation.mutateAsync(id);
+        toast.success('Campaign draft deleted.');
+      } catch (err) {
+        toast.error(getErrorMessage(err, 'Failed to delete campaign.'));
+      }
     }
   };
 
@@ -147,8 +158,8 @@ export default function Campaigns() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-surface border-b border-border">
-                    {['Campaign', 'Status', 'Delivered', 'Open Rate', 'Click Rate', 'Date'].map((h) => (
-                      <th key={h} className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+                    {['Campaign', 'Status', 'Delivered', 'Open Rate', 'Click Rate', 'Date', ''].map((h, i) => (
+                      <th key={i} className={`${h === '' ? 'text-right' : 'text-left'} px-5 py-3 text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap`}>
                         {h}
                       </th>
                     ))}
@@ -176,6 +187,18 @@ export default function Campaigns() {
                         <td className="px-5 py-3.5 text-muted">{c.status === 'draft' ? '—' : formatPercent(clickRate)}</td>
                         <td className="px-5 py-3.5 text-xs text-muted whitespace-nowrap">
                           {formatDate(c.sentAt || c.createdAt).split(',')[0]}
+                        </td>
+                        <td className="px-5 py-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          {c.status === 'draft' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteDraft(c._id, c.title)}
+                              className="p-1 h-8 w-8 text-danger hover:bg-danger-bg rounded-lg border border-transparent hover:border-danger/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );

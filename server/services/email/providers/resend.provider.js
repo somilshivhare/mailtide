@@ -2,6 +2,48 @@ import { Resend } from 'resend';
 import BaseEmailProvider from './base.provider.js';
 
 /**
+ * Utility to strip HTML tags and generate readable plain-text fallback.
+ */
+function stripHtml(html) {
+  if (!html) return '';
+  
+  let text = html;
+  
+  // Remove head, script, style tags and their contents
+  text = text.replace(/<(head|script|style|title)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  
+  // Replace block tags with newlines
+  text = text.replace(/<\/div>/gi, '\n');
+  text = text.replace(/<\/li>/gi, '\n');
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+  text = text.replace(/<\/p>/gi, '\n\n');
+  text = text.replace(/<\/h[1-6]>/gi, '\n\n');
+  
+  // Strip remaining HTML tags
+  text = text.replace(/<[^>]+>/g, '');
+  
+  // Decode common HTML entities
+  const entities = {
+    '&nbsp;': ' ',
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'"
+  };
+  
+  text = text.replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;|&apos;/g, (match) => entities[match] || match);
+  
+  // Normalize whitespace (trim, and reduce multiple newlines)
+  text = text.trim()
+             .replace(/[ \t]+/g, ' ')      // reduce multiple spaces/tabs to a single space
+             .replace(/\n\s*\n\s*\n+/g, '\n\n'); // reduce 3+ newlines to 2 newlines
+             
+  return text;
+}
+
+/**
  * Concrete implementation of the Email Provider using the Resend SDK.
  */
 class ResendProvider extends BaseEmailProvider {
@@ -48,7 +90,8 @@ class ResendProvider extends BaseEmailProvider {
           from,
           to,
           subject,
-          html
+          html,
+          text: options.text || stripHtml(html)
         };
 
         // Map optional idempotency key

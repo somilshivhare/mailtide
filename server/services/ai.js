@@ -52,27 +52,134 @@ const callGemini = async (systemPrompt, userPrompt, mockCallback) => {
 };
 
 /**
- * Write campaign based on topic, tone, and target audience
+ * Write campaign based on topic, tone, target audience, campaign type, and custom instructions
  */
-export const writeCampaign = async (topic, tone, audience) => {
-  const systemPrompt = `You are a professional conversion copywriter. Write a highly engaging bulk email campaign. Your response must be a JSON object with keys: "subject" (string) and "body" (HTML formatted string). Do not include any greeting placeholders in body, assume user personalization is handled separately.`;
-  const userPrompt = `Write an email campaign about "${topic}" in a "${tone}" tone, tailored to "${audience}".`;
-  
-  const mockCallback = () => ({
-    subject: `Boost Your Success: ${topic.slice(0, 30)}...`,
-    body: `<p>Hi {{name}},</p>
-<p>Are you looking to get the most out of <strong>${topic}</strong>? If you are part of our "${audience}" community, you know how hard it can be to succeed in this area.</p>
-<p>Here are three key things you can do today to improve:</p>
-<ol>
-  <li>Focus on consistency rather than intensity.</li>
-  <li>Leverage tools to automate administrative tasks.</li>
-  <li>Listen closely to feedback from your community.</li>
-</ol>
-<p>We'd love to hear your thoughts on this! Reply directly to this email to let us know.</p>
-<p>Best regards,<br/>The Team</p>`
-  });
+export const writeCampaign = async (topic, tone, audience, campaignType = 'Newsletter', customPrompt = '') => {
+  const systemPrompt = `You are a world-class copywriter who writes highly effective, conversational, personal, and human-sounding 1-to-1 emails.
+Your goal is to write an email that lands in Gmail's "Primary" tab and avoids the "Promotions" tab by sounding like a real human writing to another human, rather than a corporate marketing newsletter.
 
-  return callGemini(systemPrompt, userPrompt, mockCallback);
+Follow these strict rules:
+1. Tone & Style: Warm, direct, 1-to-1, conversational. Write as if sending to a colleague or friend.
+2. Word Choice: Avoid marketing and promotional jargon (e.g., "buy now", "limited time", "special discount", "guaranteed", "click here", "best offer", "sales"). Avoid excessive exclamation marks, capital letters, and spammy phrases.
+3. Structure:
+   - For "Product Launch": Focus on the story behind the product, the problem it solves, and the excitement of launching. Keep it conversational.
+   - For "Feature Update": Focus on why we built it, how it benefits the user, and how they can try it. Use simple bullet points if needed.
+   - For "Newsletter": A friendly, personal letter sharing insights or updates. Minimalist structure.
+   - For "Promotion": Focus on the value/outcome for the user rather than the price/discount. Keep it low-pressure.
+   - For "Event Invitation": A warm invite detailing what, when, and why they should attend.
+   - For "Welcome Email": A very warm hello welcoming them, setting expectations, and offering help.
+   - For "Re-engagement": Check in on how they are doing, show genuine care, and offer a simple way to reconnect.
+   - For "Announcement": Share the news transparently and explain what it means for them.
+   - For "Educational": Teach them something useful or share a tip.
+   - For "Custom": Tailor the structure to the user's specific prompt.
+4. Personalization: Support variables like {{name}} and {{email}} naturally in the copy (e.g., "Hi {{name}},", "Hope all is well, {{name}}", or "We've registered {{email}}").
+5. Output format: You must respond with a JSON object containing:
+   - "subject": A personal, engaging subject line. Keep it short and human (e.g. "quick question for you", "latest update on [X]").
+   - "previewText": A short preview text (100-140 characters) that acts as the email preheader to show in inbox list view.
+   - "body": The HTML formatted body of the email. Do NOT include html/head/body outer wrappers. Start directly with the greeting. Use clean, minimalist styling (paragraphs, bold text, links, line breaks).
+
+IMPORTANT: You must respond ONLY with raw, valid JSON. Do not write any markdown blocks (like \`\`\`json), preamble, explanation, or trailing text.`;
+
+  const userPrompt = `Campaign Details:
+- Campaign Type: ${campaignType}
+- Topic: "${topic}"
+- Tone: "${tone}"
+- Target Audience: "${audience}"
+${customPrompt ? `- Custom Instructions: "${customPrompt}"` : ''}
+
+Write a highly personalized, conversational email based on these details.`;
+  
+  const mockCallback = () => {
+    const cleanTopic = topic || 'our new features';
+    const cleanAudience = audience || 'subscribers';
+    const cleanTone = tone || 'friendly';
+    
+    let subject = '';
+    let previewText = '';
+    let body = '';
+
+    switch (campaignType) {
+      case 'Product Launch':
+        subject = `Finally introducing: ${cleanTopic}`;
+        previewText = `We've been working on this for months, {{name}}. Here is the story behind ${cleanTopic}.`;
+        body = `<p>Hi {{name}},</p>
+<p>For the past few months, our team has been working on solving a major challenge for the ${cleanAudience} community. Today, I'm thrilled to finally share it with you.</p>
+<p>Introducing <strong>${cleanTopic}</strong>.</p>
+<p>We built this because we saw how difficult it was to manage workloads effectively. Here is how it can help you:</p>
+<ul>
+  <li><strong>Save time:</strong> Automates repetitive manual workflows.</li>
+  <li><strong>Stay organized:</strong> Keeps all your communications in one central place.</li>
+  <li><strong>Focus on what matters:</strong> Reduces cognitive overhead and distraction.</li>
+</ul>
+<p>Would love to know if you'd like early access. Just reply directly to this email and let me know.</p>
+<p>Best,<br/>The Team</p>`;
+        break;
+
+      case 'Feature Update':
+        subject = `New in Mailtide: ${cleanTopic}`;
+        previewText = `Check out how our latest update to ${cleanTopic} makes sending emails even easier.`;
+        body = `<p>Hi {{name}},</p>
+<p>We just rolled out a set of updates to <strong>${cleanTopic}</strong> designed specifically to help our ${cleanAudience}.</p>
+<p>Here is what is new and how you can use it:</p>
+<p>1. <strong>Smoother integrations:</strong> Connects to your tools with a single click.<br/>
+2. <strong>Enhanced reliability:</strong> Improved backend queue handling so nothing gets lost.</p>
+<p>If you're already logged in, you can try these features out right away. Let us know what you think!</p>
+<p>Best regards,<br/>The Mailtide Team</p>`;
+        break;
+
+      case 'Promotion':
+        subject = `A special offer for our ${cleanAudience}`;
+        previewText = `We want to help you get started with ${cleanTopic}. Here's the details.`;
+        body = `<p>Hi {{name}},</p>
+<p>I know you've been looking into <strong>${cleanTopic}</strong>, and I wanted to make it as easy as possible for you to get started.</p>
+<p>We're offering our ${cleanAudience} a direct way to experience the benefits of ${cleanTopic} with priority support for the next 30 days.</p>
+<p>No high pressure sales here—just a simple invitation to see if it's the right fit for your team. You can sign up using your email address: {{email}}.</p>
+<p>Let me know if you have any questions before jumping in.</p>
+<p>Cheers,<br/>The Team</p>`;
+        break;
+
+      case 'Welcome Email':
+        subject = `Welcome to Mailtide!`;
+        previewText = `We're excited to help you send better emails, {{name}}. Let's get started.`;
+        body = `<p>Hi {{name}},</p>
+<p>Thanks for joining the Mailtide community! We're excited to help you reach your ${cleanAudience} more reliably.</p>
+<p>Our main goal is to make email campaign management seamless and stress-free. Whether you're interested in ${cleanTopic} or just general newsletters, we've got you covered.</p>
+<p>Over the next few days, we'll share a few tips to help you get the most out of your account.</p>
+<p>If you need anything at all, just reply to this email. I read every message.</p>
+<p>Best regards,<br/>Founder, Mailtide</p>`;
+        break;
+
+      default:
+        // Default Newsletter / Custom / etc.
+        subject = `Some thoughts on ${cleanTopic}`;
+        previewText = `A quick check-in about ${cleanTopic} and how it impacts ${cleanAudience}.`;
+        body = `<p>Hi {{name}},</p>
+<p>I wanted to write to you today about <strong>${cleanTopic}</strong>. It's something we've been thinking about a lot lately, especially when working with the ${cleanAudience} community.</p>
+<p>Here are a few quick takeaways we've gathered:</p>
+<ul>
+  <li>Consistency is key to keeping your audience engaged.</li>
+  <li>Personalized content performs 3x better than generic templates.</li>
+  <li>Clean, conversational copy builds genuine trust.</li>
+</ul>
+<p>What are your main challenges with ${cleanTopic} right now? I'd love to hear from you.</p>
+<p>Best,<br/>The Team</p>`;
+    }
+
+    if (customPrompt) {
+      body += `<p><em>Note: This draft was generated considering your custom instructions: "${customPrompt}"</em></p>`;
+    }
+
+    return { subject, previewText, body };
+  };
+
+  const response = await callGemini(systemPrompt, userPrompt, mockCallback);
+
+  if (response && response.body && response.previewText) {
+    const hiddenPreheader = `<div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; color: transparent; mso-hide: all;">${response.previewText}</div>\n`;
+    response.body = hiddenPreheader + response.body;
+  }
+  
+  return response;
 };
 
 /**
