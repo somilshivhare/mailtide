@@ -116,6 +116,7 @@ export default function CampaignDetail() {
   };
 
   const handleSendDraft = async () => {
+    console.log('[Diagnostic] SEND BUTTON CLICKED');
     setConfirmOpen(false);
     try {
       await sendCampaignMutation.mutateAsync(id);

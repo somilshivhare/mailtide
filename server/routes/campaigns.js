@@ -198,35 +198,44 @@ router.post('/:id/send', auth, async (req, res) => {
   const creatorId = req.user.id;
   const { scheduledAt } = req.body || {};
 
+  console.log(`[Diagnostic] API REQUEST RECEIVED for campaign ${id}`);
+
   try {
     const campaign = await Campaign.findOne({ _id: id, creatorId });
     if (!campaign) {
+      console.log(`[Diagnostic] CAMPAIGN NOT FOUND: ${id}`);
       return res.status(404).json({ error: 'Campaign not found' });
     }
+    console.log(`[Diagnostic] CAMPAIGN FOUND: ${campaign.title}`);
 
     // A campaign can be sent immediately or scheduled if it is in 'draft' or 'scheduled' status
     if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
+      console.log(`[Diagnostic] INVALID CAMPAIGN STATUS: ${campaign.status}`);
       return res.status(400).json({ error: 'Campaign has already been queued or sent' });
     }
 
     // Handle campaign scheduling
     if (scheduledAt) {
+      console.log(`[Diagnostic] SCHEDULING CAMPAIGN at ${scheduledAt}`);
       const scheduleTime = new Date(scheduledAt).getTime();
       const delay = scheduleTime - Date.now();
 
       if (isNaN(scheduleTime)) {
+        console.log(`[Diagnostic] INVALID SCHEDULE DATE FORMAT: ${scheduledAt}`);
         return res.status(400).json({ error: 'Invalid scheduled date format' });
       }
 
       if (delay > 0) {
         // If rescheduling, clean up the previous scheduled job first
         if (campaign.status === 'scheduled') {
+          console.log(`[Diagnostic] CLEANING PREVIOUS SCHEDULED JOB for campaign ${id}`);
           const prevJob = await schedulerQueue.getJob(campaign._id.toString());
           if (prevJob) {
             await prevJob.remove();
           }
         }
 
+        console.log(`[Diagnostic] ADDING TO SCHEDULER QUEUE with delay ${delay}`);
         // Add delayed job to scheduler queue
         await schedulerQueue.add(
           'send-campaign',
@@ -238,23 +247,29 @@ router.post('/:id/send', auth, async (req, res) => {
         campaign.scheduledAt = new Date(scheduledAt);
         await campaign.save();
 
+        console.log(`[Diagnostic] SCHEDULING SUCCESSFUL`);
         return res.status(200).json({ status: 'scheduled', scheduledAt: campaign.scheduledAt });
       }
     }
 
     // Dispatch immediately: Retrieve active subscribers
+    console.log(`[Diagnostic] FETCHING ACTIVE SUBSCRIBERS`);
     const subscribers = await Subscriber.find({ creatorId, status: 'active' });
     if (subscribers.length === 0) {
+      console.log(`[Diagnostic] NO ACTIVE SUBSCRIBERS FOUND`);
       return res.status(400).json({ error: 'No active subscribers found. Please add or import subscribers.' });
     }
 
     // Check if jobs already exist for this campaign (prevent double dispatches)
+    console.log(`[Diagnostic] CHECKING FOR EXISTING JOBS`);
     const existingJobCount = await Job.countDocuments({ campaignId: campaign._id });
     if (existingJobCount > 0) {
+      console.log(`[Diagnostic] JOBS ALREADY EXIST`);
       return res.status(400).json({ error: 'Sending jobs already scheduled for this campaign' });
     }
 
     // Create Job records
+    console.log(`[Diagnostic] CREATING DB JOB RECORDS`);
     const jobsData = subscribers.map((sub) => ({
       campaignId: campaign._id,
       subscriberId: sub._id,
@@ -264,6 +279,7 @@ router.post('/:id/send', auth, async (req, res) => {
     }));
 
     const createdJobs = await Job.insertMany(jobsData);
+    console.log(`[Diagnostic] QUEUE JOB CREATED: ${createdJobs.length} jobs created in MongoDB`);
 
     // Queue in BullMQ
     const queueJobs = createdJobs.map((job) => ({
@@ -271,7 +287,9 @@ router.post('/:id/send', auth, async (req, res) => {
       data: { jobId: job._id.toString() }
     }));
 
+    console.log(`[Diagnostic] PUSHING TO emailQueue (BULLMQ)...`);
     await emailQueue.addBulk(queueJobs);
+    console.log(`[Diagnostic] REDIS SUCCESS: Pushed to BullMQ successfully`);
 
     // Update campaign status
     campaign.status = 'queued';
@@ -280,9 +298,10 @@ router.post('/:id/send', auth, async (req, res) => {
     campaign.scheduledAt = undefined; // Clear schedule time on sending
     await campaign.save();
 
+    console.log(`[Diagnostic] RESPONSE SENT`);
     return res.status(200).json({ queued: subscribers.length });
   } catch (err) {
-    console.error(`Send campaign error: ${err.message}`);
+    console.error(`[Diagnostic] Send campaign error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
   }
 });
