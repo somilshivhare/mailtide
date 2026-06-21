@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 
 import authRouter from './routes/auth.js';
 import subscribersRouter from './routes/subscribers.js';
-import campaignsRouter from './routes/campaigns.js';
+import campaignsRouter from './routes/campaign.routes.js';
 import analyticsRouter from './routes/analytics.js';
 import aiRouter from './routes/ai.js';
 import webhooksRouter from './routes/webhooks.js';
@@ -47,8 +47,10 @@ const app = express();
 app.set('trust proxy', 1);
 const { PORT, MONGODB_URI, CLIENT_URL } = process.env;
 
-// Security headers
-app.use(helmet());
+// Security headers with cross-origin resource sharing policy support for static assets
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // Cookie parsing (MUST be registered before routes)
 app.use(cookieParser());
