@@ -110,12 +110,22 @@ export default function Navbar() {
         {user && (
           <button
             onClick={() => navigate('/profile')}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-all duration-150 shrink-0"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-accent/20 hover:opacity-90 transition-all duration-150 shrink-0 overflow-hidden"
             title={user.email}
           >
-            <span className="text-xs font-bold text-accent uppercase">
-              {(user.email || user.name || 'U')[0]}
-            </span>
+            {user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name || 'User'}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-accent/10">
+                <span className="text-xs font-bold text-accent uppercase">
+                  {(user.email || user.name || 'U')[0]}
+                </span>
+              </div>
+            )}
           </button>
         )}
       </div>

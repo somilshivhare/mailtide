@@ -105,11 +105,19 @@ export default function Sidebar({ collapsed, onToggle }) {
         {!collapsed && user && (
           <div className="mt-2 pt-2 border-t border-border/60">
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg">
-              <div className="h-6 w-6 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-bold text-accent uppercase">
-                  {(user.email || user.name || 'U')[0]}
-                </span>
-              </div>
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || 'User'}
+                  className="h-6 w-6 rounded-full object-cover border border-accent/20 shrink-0"
+                />
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-bold text-accent uppercase">
+                    {(user.email || user.name || 'U')[0]}
+                  </span>
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-text truncate leading-tight">
                   {user.name || 'Account'}
