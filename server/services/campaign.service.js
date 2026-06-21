@@ -326,10 +326,19 @@ class CampaignService {
     const subject = `[Test] ${campaign.subject}`;
     
     let htmlBody = campaign.body;
+
+    // Clean up local development localhost URLs to use dynamic BASE_URL
+    const cleanBaseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
+    if (htmlBody) {
+      htmlBody = htmlBody.replace(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s"'>]+)/g, (match, port, path) => {
+        return `${cleanBaseUrl}${path}`;
+      });
+    }
+
     htmlBody = htmlBody.replace(/(\{\{\s*name\s*\}\})/g, 'Test Recipient');
     htmlBody = htmlBody.replace(/(\{\{\s*email\s*\}\})/g, email);
     
-    const dummyUnsubscribe = `${process.env.BASE_URL || 'http://localhost:5001'}/api/unsubscribe?token=test-token`;
+    const dummyUnsubscribe = `${cleanBaseUrl}/api/unsubscribe?token=test-token`;
     htmlBody = htmlBody.replace(/(\{\{\s*unsubscribe\s*\}\})/g, dummyUnsubscribe);
 
     console.log(`[TestEmail] Campaign: ${id} | From: ${process.env.SENDER_EMAIL} | To: ${email} | Subject: ${subject}`);

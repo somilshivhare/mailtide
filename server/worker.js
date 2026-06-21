@@ -137,11 +137,20 @@ const processJob = async (bullJob) => {
 
     // Personalize email body
     let htmlBody = campaign.body;
+
+    // Clean up local development localhost URLs to use dynamic BASE_URL
+    const cleanBaseUrl = (BASE_URL || '').replace(/\/$/, '');
+    if (htmlBody) {
+      htmlBody = htmlBody.replace(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s"'>]+)/g, (match, port, path) => {
+        return `${cleanBaseUrl}${path}`;
+      });
+    }
+
     htmlBody = htmlBody.replace(/(\{\{\s*name\s*\}\})/g, subscriber.name);
     htmlBody = htmlBody.replace(/(\{\{\s*email\s*\}\})/g, subscriber.email);
 
     // Build and inject unsubscribe link
-    const unsubscribeLink = `${BASE_URL}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
+    const unsubscribeLink = `${cleanBaseUrl}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
     const unsubscribeFooter = `
       <br/>
       <hr style="border: 0; border-top: 1px solid #ffffff15; margin: 30px 0 15px 0;" />
