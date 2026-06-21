@@ -166,18 +166,7 @@ router.put('/profile', auth, async (req, res) => {
 
     await user.save();
 
-    res.status(200).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      company: user.company,
-      website: user.website,
-      industry: user.industry,
-      timezone: user.timezone,
-      bio: user.bio,
-      avatar: user.avatar,
-      createdAt: user.createdAt
-    });
+    res.status(200).json(user);
   } catch (err) {
     console.error(`Update profile error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
@@ -199,25 +188,11 @@ router.post('/profile/avatar', auth, uploadAvatar.single('avatar'), async (req, 
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Construct static public URL. Use BASE_URL or fallback to req headers.
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
-
-    user.avatar = imageUrl;
+    // Save relative URL path to MongoDB
+    user.avatar = `/uploads/${req.file.filename}`;
     await user.save();
 
-    res.status(200).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      company: user.company,
-      website: user.website,
-      industry: user.industry,
-      timezone: user.timezone,
-      bio: user.bio,
-      avatar: user.avatar,
-      createdAt: user.createdAt
-    });
+    res.status(200).json(user);
   } catch (err) {
     console.error(`Upload avatar error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
