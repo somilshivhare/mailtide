@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Building, Globe, Clock, Image, Save, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth.js';
 import { Button, Input, Textarea, Label } from '../components/ui/custom.jsx';
+import { authAPI } from '../services/api.js';
 
 const TIMEZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -15,27 +16,73 @@ const INDUSTRIES = [
 ];
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    company: '',
-    website: '',
-    industry: '',
-    timezone: 'UTC',
-    bio: '',
+    company: user?.company || '',
+    website: user?.website || '',
+    industry: user?.industry || '',
+    timezone: user?.timezone || 'UTC',
+    bio: user?.bio || '',
+    avatar: user?.avatar || ''
   });
+
+  useEffect(() => {
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setForm({
+        name: user.name || '',
+        email: user.email || '',
+        company: user.company || '',
+        website: user.website || '',
+        industry: user.industry || '',
+        timezone: user.timezone || 'UTC',
+        bio: user.bio || '',
+        avatar: user.avatar || ''
+      });
+    }
+  }, [user]);
 
   const handleChange = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    // Profile data stored locally — backend schema can be extended later
-    toast.success('Profile saved.');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaved(false);
+    try {
+      const updatedUser = await authAPI.updateProfile({
+        name: form.name,
+        company: form.company,
+        website: form.website,
+        industry: form.industry,
+        timezone: form.timezone,
+        bio: form.bio
+      });
+      updateUser(updatedUser);
+      toast.success('Profile saved.');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      console.error('Failed to save profile:', err);
+      toast.error('Failed to save profile changes.');
+    }
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const toastId = toast.loading('Uploading photo...');
+    try {
+      const updatedUser = await authAPI.uploadAvatar(file);
+      updateUser(updatedUser);
+      toast.success('Profile picture updated.', { id: toastId });
+    } catch (err) {
+      console.error('Failed to upload avatar:', err);
+      toast.error('Failed to upload profile picture.', { id: toastId });
+    }
   };
 
   return (
@@ -52,13 +99,29 @@ export default function Profile() {
           <h3 className="text-sm font-semibold text-text mb-4">Identity</h3>
           <div className="flex items-center gap-5 mb-5">
             <div className="relative">
-              <div className="h-16 w-16 rounded-full bg-accent/10 border-2 border-accent/20 flex items-center justify-center">
-                <span className="text-2xl font-bold text-accent uppercase">
-                  {(form.email || 'U')[0]}
-                </span>
-              </div>
+              {form.avatar ? (
+                <img
+                  src={form.avatar}
+                  alt="Profile Avatar"
+                  className="h-16 w-16 rounded-full object-cover border-2 border-accent/20"
+                />
+              ) : (
+                <div className="h-16 w-16 rounded-full bg-accent/10 border-2 border-accent/20 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-accent uppercase">
+                    {(form.email || 'U')[0]}
+                  </span>
+                </div>
+              )}
+              <input
+                type="file"
+                id="avatar-upload-input"
+                className="hidden"
+                accept="image/*"
+                onChange={handleAvatarChange}
+              />
               <button
                 type="button"
+                onClick={() => document.getElementById('avatar-upload-input')?.click()}
                 className="absolute -bottom-1 -right-1 h-6 w-6 flex items-center justify-center rounded-full border border-border bg-white shadow-dropdown text-muted hover:text-text"
                 title="Change photo"
               >

@@ -3,6 +3,40 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configure multer storage for avatars
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../uploads/'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'avatar-' + uniqueSuffix + ext);
+  }
+});
+
+// Configure file filter (images only)
+const avatarFileFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'), false);
+  }
+};
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  fileFilter: avatarFileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB limit
+});
 
 const router = Router();
 const { JWT_SECRET } = process.env;
@@ -104,6 +138,92 @@ router.get('/me', auth, async (req, res) => {
     console.error(`Get me error: ${err.message}`);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+/**
+ * PUT /api/auth/profile
+ * Updates basic profile details.
+ */
+router.put('/profile', auth, async (req, res) => {
+  const { name, company, website, industry, timezone, bio } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.name = name.trim();
+    user.company = (company || '').trim();
+    user.website = (website || '').trim();
+    user.industry = (industry || '').trim();
+    user.timezone = (timezone || 'UTC').trim();
+    user.bio = (bio || '').trim();
+
+    await user.save();
+
+    res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      company: user.company,
+      website: user.website,
+      industry: user.industry,
+      timezone: user.timezone,
+      bio: user.bio,
+      avatar: user.avatar,
+      createdAt: user.createdAt
+    });
+  } catch (err) {
+    console.error(`Update profile error: ${err.message}`);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /api/auth/profile/avatar
+ * Uploads user profile avatar image.
+ */
+router.post('/profile/avatar', auth, uploadAvatar.single('avatar'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file uploaded' });
+  }
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Construct static public URL. Use BASE_URL or fallback to req headers.
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+
+    user.avatar = imageUrl;
+    await user.save();
+
+    res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      company: user.company,
+      website: user.website,
+      industry: user.industry,
+      timezone: user.timezone,
+      bio: user.bio,
+      avatar: user.avatar,
+      createdAt: user.createdAt
+    });
+  } catch (err) {
+    console.error(`Upload avatar error: ${err.message}`);
+    res.status(500).json({ error: 'Server error' });
+  }
+}, (err, req, res, next) => {
+  res.status(400).json({ error: err.message });
 });
 
 /**

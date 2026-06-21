@@ -19,6 +19,36 @@ const UserSchema = new Schema({
     type: String,
     required: true
   },
+  company: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  website: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  industry: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  timezone: {
+    type: String,
+    trim: true,
+    default: 'UTC'
+  },
+  bio: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  avatar: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now

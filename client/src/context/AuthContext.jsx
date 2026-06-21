@@ -61,11 +61,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+  };
+
   const isAuthenticated = !!user;
   const dummyToken = user ? 'cookie_auth_active' : null;
 
   return (
-    <AuthContext.Provider value={{ user, token: dummyToken, loading, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, token: dummyToken, loading, isAuthenticated, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
