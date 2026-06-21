@@ -16,6 +16,7 @@ import analyticsRouter from './routes/analytics.js';
 import aiRouter from './routes/ai.js';
 import webhooksRouter from './routes/webhooks.js';
 import errorMiddleware from './middleware/errorMiddleware.js';
+import User from './models/User.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,10 +114,42 @@ app.get('/', (req, res) => {
 // Global Error Handler
 app.use(errorMiddleware);
 
+const migrateAvatars = async () => {
+  try {
+    const users = await User.find({ avatar: { $regex: 'localhost' } });
+    if (users.length > 0) {
+      console.log(`[Migration] Found ${users.length} users with legacy localhost avatars.`);
+      for (const user of users) {
+        if (user.avatar.includes('localhost')) {
+          try {
+            const match = user.avatar.match(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s]+)/);
+            if (match && match[2]) {
+              user.avatar = match[2];
+              await user.save();
+              console.log(`[Migration] Cleaned user avatar path for ${user.email} to: ${user.avatar}`);
+            } else {
+              const url = new URL(user.avatar);
+              user.avatar = url.pathname;
+              await user.save();
+              console.log(`[Migration] Cleaned user avatar path (URL parse) for ${user.email} to: ${user.avatar}`);
+            }
+          } catch (err) {
+            console.error(`[Migration] Failed to migrate avatar for user ${user.email}: ${err.message}`);
+          }
+        }
+      }
+      console.log('[Migration] Avatar migration completed.');
+    }
+  } catch (err) {
+    console.error(`[Migration] Error running avatar migration: ${err.message}`);
+  }
+};
+
 const connectDB = async () => {
   try {
     await mongoose.connect(MONGODB_URI);
     console.log('MongoDB Connected');
+    await migrateAvatars();
   } catch (error) {
     console.error(`DB connection failed: ${error.message}`);
     process.exit(1);
