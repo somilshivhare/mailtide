@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { Settings, Mail, Key, Eye, EyeOff, Copy, RefreshCw, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, Sliders, LogOut, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, Input, Label } from '../components/ui/custom.jsx';
+import { Button, Input } from '../components/ui/custom.jsx';
 import { cn } from '../lib/utils.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 const TABS = [
-  { id: 'general',  label: 'General',  icon: Settings },
-  { id: 'email',    label: 'Email',    icon: Mail },
-  { id: 'apikeys',  label: 'API Keys', icon: Key },
+  { id: 'general',     label: 'General',     icon: Settings },
+  { id: 'preferences', label: 'Preferences', icon: Sliders },
+  { id: 'account',     label: 'Account',     icon: LogOut },
 ];
 
 function SettingRow({ label, description, children }) {
@@ -44,34 +44,45 @@ function Toggle({ enabled, onChange }) {
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
 
-  // General
+  // General Settings
   const [appName, setAppName] = useState('Mailtide');
   const [notifEmail, setNotifEmail] = useState(user?.email || '');
 
-  // Email
-  const [senderName, setSenderName] = useState('Mailtide');
-  const [senderEmail, setSenderEmail] = useState('onboarding@resend.dev');
-  const [replyTo, setReplyTo] = useState('');
+  // Preferences Toggles
+  const [bounceAlerts, setBounceAlerts] = useState(true);
+  const [weeklyDigest, setWeeklyDigest] = useState(false);
+  const [unsubNotify, setUnsubNotify] = useState(true);
 
-  // Toggles
-  const [toggles, setToggles] = useState({
-    bounceAlerts: true,
-    weeklyDigest: false,
-    unsubNotify: true,
-    openTracking: true,
-    clickTracking: true,
-  });
+  // Load from localStorage on mount
+  useEffect(() => {
+    const savedAppName = localStorage.getItem('mailtide_app_name');
+    if (savedAppName) setAppName(savedAppName);
 
-  // API Key display
-  const [showKey, setShowKey] = useState(false);
-  const fakeKey = 'mt_live_••••••••••••••••••••••••••••••••';
+    const savedNotifEmail = localStorage.getItem('mailtide_notif_email');
+    if (savedNotifEmail) setNotifEmail(savedNotifEmail);
+    else if (user?.email) setNotifEmail(user.email);
 
-  const toggle = (key) => setToggles((t) => ({ ...t, [key]: !t[key] }));
+    const savedBounce = localStorage.getItem('mailtide_bounce_alerts');
+    if (savedBounce !== null) setBounceAlerts(savedBounce === 'true');
 
-  const handleSave = () => { toast.success('Settings saved.'); };
+    const savedDigest = localStorage.getItem('mailtide_weekly_digest');
+    if (savedDigest !== null) setWeeklyDigest(savedDigest === 'true');
+
+    const savedUnsub = localStorage.getItem('mailtide_unsub_notify');
+    if (savedUnsub !== null) setUnsubNotify(savedUnsub === 'true');
+  }, [user]);
+
+  const handleSave = () => {
+    localStorage.setItem('mailtide_app_name', appName);
+    localStorage.setItem('mailtide_notif_email', notifEmail);
+    localStorage.setItem('mailtide_bounce_alerts', String(bounceAlerts));
+    localStorage.setItem('mailtide_weekly_digest', String(weeklyDigest));
+    localStorage.setItem('mailtide_unsub_notify', String(unsubNotify));
+    toast.success('Settings saved.');
+  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5 animate-fade-in">
@@ -102,7 +113,7 @@ export default function SettingsPage() {
       {/* Tab content */}
       <div className="rounded-xl border border-border bg-white shadow-card overflow-hidden">
 
-        {/* ── General ── */}
+        {/* ── General Settings ── */}
         {activeTab === 'general' && (
           <div className="p-5">
             <h3 className="text-sm font-semibold text-text mb-4">General Settings</h3>
@@ -112,79 +123,38 @@ export default function SettingsPage() {
             <SettingRow label="Notification Email" description="Receive system alerts at this address.">
               <Input type="email" value={notifEmail} onChange={(e) => setNotifEmail(e.target.value)} className="w-52" />
             </SettingRow>
+          </div>
+        )}
+
+        {/* ── Preferences Toggles ── */}
+        {activeTab === 'preferences' && (
+          <div className="p-5">
+            <h3 className="text-sm font-semibold text-text mb-4">System Alerts</h3>
             <SettingRow label="Bounce Alerts" description="Get notified when emails bounce.">
-              <Toggle enabled={toggles.bounceAlerts} onChange={() => toggle('bounceAlerts')} />
+              <Toggle enabled={bounceAlerts} onChange={setBounceAlerts} />
             </SettingRow>
             <SettingRow label="Weekly Digest" description="Summary report every Monday morning.">
-              <Toggle enabled={toggles.weeklyDigest} onChange={() => toggle('weeklyDigest')} />
+              <Toggle enabled={weeklyDigest} onChange={setWeeklyDigest} />
             </SettingRow>
             <SettingRow label="Unsubscribe Notifications" description="Alert when subscribers opt out.">
-              <Toggle enabled={toggles.unsubNotify} onChange={() => toggle('unsubNotify')} />
+              <Toggle enabled={unsubNotify} onChange={setUnsubNotify} />
             </SettingRow>
           </div>
         )}
 
-        {/* ── Email ── */}
-        {activeTab === 'email' && (
+        {/* ── Account Actions (Logout) ── */}
+        {activeTab === 'account' && (
           <div className="p-5">
-            <h3 className="text-sm font-semibold text-text mb-4">Email Sending</h3>
-            <SettingRow label="From Name" description="Displayed in the recipient's inbox.">
-              <Input value={senderName} onChange={(e) => setSenderName(e.target.value)} className="w-44" />
-            </SettingRow>
-            <SettingRow label="From Email" description="Must match your verified Resend domain.">
-              <Input value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} className="w-56" />
-            </SettingRow>
-            <SettingRow label="Reply-To" description="Where replies are directed (optional).">
-              <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="replies@yourdomain.com" className="w-52" />
-            </SettingRow>
-            <SettingRow label="Open Tracking" description="Embed 1×1 pixel to track email opens.">
-              <Toggle enabled={toggles.openTracking} onChange={() => toggle('openTracking')} />
-            </SettingRow>
-            <SettingRow label="Click Tracking" description="Wrap links to track clicks.">
-              <Toggle enabled={toggles.clickTracking} onChange={() => toggle('clickTracking')} />
-            </SettingRow>
-          </div>
-        )}
-
-        {/* ── API Keys ── */}
-        {activeTab === 'apikeys' && (
-          <div className="p-5">
-            <h3 className="text-sm font-semibold text-text mb-1">API Keys</h3>
-            <p className="text-xs text-muted mb-5">Use these keys to authenticate with the Mailtide API.</p>
-
-            <div className="rounded-lg border border-border p-4 bg-surface space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text">Production Key</p>
-                  <p className="text-xs text-muted">Created Jun 1, 2026 · Last used Jun 15, 2026</p>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setShowKey((s) => !s)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-white text-muted hover:text-text transition-colors"
-                    title={showKey ? 'Hide key' : 'Reveal key'}
-                  >
-                    {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText('mt_live_test_key'); toast.success('Copied to clipboard.'); }}
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-white text-muted hover:text-text transition-colors"
-                    title="Copy"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+            <h3 className="text-sm font-semibold text-text mb-2">Account Management</h3>
+            <p className="text-xs text-muted mb-6">Manage session access and authentication state.</p>
+            <div className="rounded-lg border border-border p-4 bg-surface flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text">Sign Out</p>
+                <p className="text-xs text-muted">Disconnect session and exit your account.</p>
               </div>
-              <code className="block w-full rounded bg-gray-100 border border-border px-3 py-2 text-xs font-mono text-text tracking-wide">
-                {showKey ? 'mt_live_sk_example_key_123456' : fakeKey}
-              </code>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-              <p className="text-xs text-muted">Rotate key to invalidate existing access.</p>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <RefreshCw className="h-3.5 w-3.5" />
-                Rotate Key
+              <Button onClick={logout} variant="outline" className="text-danger border-danger/20 hover:bg-danger/5 gap-2">
+                <LogOut className="h-4 w-4" />
+                Sign Out
               </Button>
             </div>
           </div>
@@ -192,7 +162,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Save bar */}
-      {(activeTab === 'general' || activeTab === 'email') && (
+      {(activeTab === 'general' || activeTab === 'preferences') && (
         <div className="flex justify-end">
           <Button onClick={handleSave} className="gap-2">
             <Save className="h-4 w-4" />
