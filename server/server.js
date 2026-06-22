@@ -56,10 +56,24 @@ app.use(helmet({
 // Cookie parsing (MUST be registered before routes)
 app.use(cookieParser());
 
-console.log('CLIENT_URL:', process.env.CLIENT_URL);
+const allowedOrigins = [
+  CLIENT_URL,
+  'https://www.mailtide.me',
+  'https://mailtide.me',
+  'http://localhost:5173',
+  'http://localhost:5001'
+].filter(Boolean);
+
 // CORS config
 app.use(cors({
-  origin: CLIENT_URL,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or same-origin)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
