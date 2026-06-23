@@ -45,9 +45,8 @@ const UserSchema = new Schema({
     default: ''
   },
   avatar: {
-    type: String,
-    trim: true,
-    default: ''
+    url: { type: String, default: '' },
+    publicId: { type: String, default: '' }
   },
   createdAt: {
     type: Date,
@@ -55,30 +54,48 @@ const UserSchema = new Schema({
   }
 });
 
+const isCloudinaryUrl = (url) => {
+  return typeof url === 'string' && url.includes('cloudinary.com');
+};
+
 // Helper to format avatar URL dynamically based on environment BASE_URL
 const formatAvatarUrl = (avatar) => {
   if (!avatar) return '';
+  let avatarUrl = '';
+  if (typeof avatar === 'string') {
+    avatarUrl = avatar;
+  } else if (avatar && typeof avatar === 'object') {
+    avatarUrl = avatar.url || '';
+  }
+
+  if (!avatarUrl) return '';
+  if (isCloudinaryUrl(avatarUrl)) return avatarUrl;
   const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
   
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
     try {
-      const url = new URL(avatar);
+      const url = new URL(avatarUrl);
+      if (isCloudinaryUrl(url.href)) return url.href;
       return `${baseUrl}${url.pathname}`;
     } catch (err) {
-      return avatar;
+      return avatarUrl;
     }
   }
-  const relativePath = avatar.startsWith('/') ? avatar : `/${avatar}`;
+  const relativePath = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
   return `${baseUrl}${relativePath}`;
 };
 
 // Pre-save hook to migrate/sanitize stored avatar URLs to relative paths
 UserSchema.pre('save', function () {
-  if (this.avatar) {
-    if (this.avatar.startsWith('http://') || this.avatar.startsWith('https://')) {
+  if (this.avatar && this.avatar.url) {
+    if (isCloudinaryUrl(this.avatar.url)) {
+      // Keep full Cloudinary URL
+      return;
+    }
+    if (this.avatar.url.startsWith('http://') || this.avatar.url.startsWith('https://')) {
       try {
-        const url = new URL(this.avatar);
-        this.avatar = url.pathname;
+        const url = new URL(this.avatar.url);
+        this.avatar.url = url.pathname;
       } catch (err) {
         // Ignore parsing errors and save as is
       }
@@ -114,22 +131,36 @@ const User = models.User ?? model('User', UserSchema);
 // Run migration to clean legacy localhost URLs once database is connected
 mongoose.connection.once('open', async () => {
   try {
-    const users = await User.find({ avatar: { $regex: 'localhost' } });
-    if (users.length > 0) {
-      console.log(`[Migration] Found ${users.length} users with legacy localhost avatars.`);
-      for (const user of users) {
-        if (user.avatar && user.avatar.includes('localhost')) {
+    // 1. Convert string avatars to object structure
+    const allUsers = await User.find({});
+    for (const user of allUsers) {
+      if (user.avatar && typeof user.avatar === 'string') {
+        user.avatar = {
+          url: user.avatar,
+          publicId: ''
+        };
+        await user.save();
+        console.log(`[Migration] Converted string avatar to object for user: ${user.email}`);
+      }
+    }
+
+    // 2. Clean legacy localhost URLs inside avatar.url
+    const usersWithLocalhost = await User.find({ 'avatar.url': { $regex: 'localhost' } });
+    if (usersWithLocalhost.length > 0) {
+      console.log(`[Migration] Found ${usersWithLocalhost.length} users with legacy localhost avatars.`);
+      for (const user of usersWithLocalhost) {
+        if (user.avatar && user.avatar.url && user.avatar.url.includes('localhost')) {
           try {
-            const match = user.avatar.match(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s]+)/);
+            const match = user.avatar.url.match(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s]+)/);
             if (match && match[2]) {
-              user.avatar = match[2];
+              user.avatar.url = match[2];
               await user.save();
-              console.log(`[Migration] Cleaned user avatar path for ${user.email} to: ${user.avatar}`);
+              console.log(`[Migration] Cleaned user avatar url path for ${user.email} to: ${user.avatar.url}`);
             } else {
-              const url = new URL(user.avatar);
-              user.avatar = url.pathname;
+              const url = new URL(user.avatar.url);
+              user.avatar.url = url.pathname;
               await user.save();
-              console.log(`[Migration] Cleaned user avatar path (URL parse) for ${user.email} to: ${user.avatar}`);
+              console.log(`[Migration] Cleaned user avatar url path (URL parse) for ${user.email} to: ${user.avatar.url}`);
             }
           } catch (err) {
             console.error(`[Migration] Failed to migrate avatar for user ${user.email}: ${err.message}`);

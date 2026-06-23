@@ -4,21 +4,19 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinary.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Configure multer storage for avatars
-const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads/'));
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, 'avatar-' + uniqueSuffix + ext);
+// Configure multer storage for avatars on Cloudinary
+const avatarStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'mailtide/avatars',
+    allowed_formats: ['jpeg', 'png', 'jpg', 'gif', 'webp'],
+    public_id: (req, file) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      return `avatar-${uniqueSuffix}`;
+    }
   }
 });
 
@@ -177,7 +175,13 @@ router.put('/profile', auth, async (req, res) => {
  * POST /api/auth/profile/avatar
  * Uploads user profile avatar image.
  */
-router.post('/profile/avatar', auth, uploadAvatar.single('avatar'), async (req, res) => {
+router.post('/profile/avatar', auth, (req, res, next) => {
+  // Check if Cloudinary credentials are configured
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return res.status(500).json({ error: 'Image upload is not configured on the server. Cloudinary credentials are missing.' });
+  }
+  next();
+}, uploadAvatar.single('avatar'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded' });
   }
@@ -188,8 +192,21 @@ router.post('/profile/avatar', auth, uploadAvatar.single('avatar'), async (req, 
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Save relative URL path to MongoDB
-    user.avatar = `/uploads/${req.file.filename}`;
+    // Delete old avatar from Cloudinary if it exists
+    if (user.avatar && user.avatar.publicId) {
+      try {
+        await cloudinary.uploader.destroy(user.avatar.publicId);
+        console.log(`[Cloudinary] Deleted old avatar: ${user.avatar.publicId}`);
+      } catch (destroyErr) {
+        console.error(`[Cloudinary] Failed to delete old avatar: ${destroyErr.message}`);
+      }
+    }
+
+    // Save secure_url and publicId in MongoDB User.avatar
+    user.avatar = {
+      url: req.file.path || req.file.secure_url || req.file.url,
+      publicId: req.file.filename
+    };
     await user.save();
 
     res.status(200).json(user);
@@ -198,7 +215,12 @@ router.post('/profile/avatar', auth, uploadAvatar.single('avatar'), async (req, 
     res.status(500).json({ error: 'Server error' });
   }
 }, (err, req, res, next) => {
-  res.status(400).json({ error: err.message });
+  console.error('Avatar upload error:', err);
+  let errMsg = err.message || 'An error occurred during file upload';
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    errMsg = 'File size is too large. Max limit is 2MB.';
+  }
+  res.status(400).json({ error: errMsg });
 });
 
 /**

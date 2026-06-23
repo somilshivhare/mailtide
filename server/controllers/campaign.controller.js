@@ -1,4 +1,5 @@
 import campaignService from '../services/campaign.service.js';
+import CampaignImage from '../models/CampaignImage.js';
 
 class CampaignController {
   async getCampaigns(req, res) {
@@ -129,10 +130,28 @@ class CampaignController {
       return res.status(400).json({ error: 'No image file uploaded' });
     }
 
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    try {
+      const imageUrl = req.file.path || req.file.secure_url || req.file.url;
+      const publicId = req.file.filename;
 
-    return res.status(200).json({ url: imageUrl });
+      // Save to database
+      await CampaignImage.create({
+        url: imageUrl,
+        publicId: publicId
+      });
+
+      return res.status(200).json({
+        url: imageUrl,
+        publicId: publicId,
+        campaignImage: {
+          url: imageUrl,
+          publicId: publicId
+        }
+      });
+    } catch (err) {
+      console.error(`Upload campaign image controller error: ${err.message}`);
+      return res.status(500).json({ error: 'Failed to process campaign image upload' });
+    }
   }
 
   async sendTestEmail(req, res) {
