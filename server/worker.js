@@ -14,46 +14,11 @@ if (!REDIS_URL || !MONGODB_URI) {
   process.exit(1);
 }
 
-// ── Startup diagnostic ─────────────────────────────────────────────────────
-console.log('='.repeat(60));
-console.log('[Worker] Starting Mailtide Email Worker');
-console.log(`[Worker] PID          : ${process.pid}`);
-console.log(`[Worker] Concurrency  : 3`);
-console.log(`[Worker] Limiter      : max=1, duration=600ms`);
-console.log(`[Worker] SENDER_EMAIL : ${process.env.SENDER_EMAIL || '⚠️  NOT SET'}`);
-console.log(`[Worker] NODE_ENV     : ${process.env.NODE_ENV}`);
-console.log(`[Worker] BASE_URL     : ${BASE_URL}`);
-console.log(`[Worker] RESEND KEY   : ${process.env.RESEND_API_KEY ? 're_***' + process.env.RESEND_API_KEY.slice(-4) : '⚠️  NOT SET'}`);
-console.log('='.repeat(60));
-
-// Connect to MongoDB
-try {
-  await mongoose.connect(MONGODB_URI);
-  console.log('Worker connected to MongoDB successfully.');
-} catch (err) {
-  console.error(`Worker MongoDB connection error: ${err.message}`);
-  process.exit(1);
-}
-
-const connection = new Redis(REDIS_URL, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-  tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
-});
-
-connection.on('error', (err) => {
-  console.error(`Redis email worker connection error: ${err.message}`);
-});
-
-const schedulerConnection = new Redis(REDIS_URL, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-  tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
-});
-
-schedulerConnection.on('error', (err) => {
-  console.error(`Redis scheduler worker connection error: ${err.message}`);
-});
+let worker = null;
+let schedulerWorker = null;
+let connection = null;
+let schedulerConnection = null;
+let workerStarted = false;
 
 /**
  * Helper to check campaign completion and update campaign status
@@ -209,47 +174,6 @@ const processJob = async (bullJob) => {
   }
 };
 
-const worker = new Worker('mailtide-emails', processJob, {
-  connection,
-  concurrency: 3,
-  limiter: {
-    max: 1,       // 1 job per duration window
-    duration: 600 // 600ms → ~1.6 emails/sec → safely under Resend 2 req/sec
-  },
-  drainDelay: 30,
-  stalledInterval: 300000
-});
-
-worker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed successfully`);
-});
-
-worker.on('failed', async (job, err) => {
-  console.error(`Job ${job?.id ?? 'unknown'} failed: ${err.message}`);
-  if (job && job.attemptsMade >= job.opts.attempts) {
-    const { jobId } = job.data;
-    try {
-      const dbJob = await Job.findByIdAndUpdate(
-        jobId,
-        { status: 'failed' },
-        { returnDocument: 'after' }
-      );
-      if (dbJob) {
-        console.log(`[Worker] Job ${jobId} failed permanently after ${job.attemptsMade} attempts.`);
-        await checkCampaignCompletion(dbJob.campaignId);
-      }
-    } catch (dbErr) {
-      console.error(`[Worker] Failed to update job ${jobId} to failed status in DB: ${dbErr.message}`);
-    }
-  } else if (job) {
-    console.log(`[Worker] Job ${job.id} failed, will retry. Attempt ${job.attemptsMade} of ${job.opts.attempts}`);
-  }
-});
-
-worker.on('error', (err) => {
-  console.error(`Worker error: ${err.message}`);
-});
-
 /**
  * Scheduler Queue processing function
  */
@@ -320,31 +244,139 @@ const processScheduleJob = async (bullJob) => {
   }
 };
 
-const schedulerWorker = new Worker('mailtide-campaign-scheduler', processScheduleJob, {
-  connection: schedulerConnection,
-  concurrency: 2,
-  drainDelay: 30,
-  stalledInterval: 300000
-});
+export const startWorker = async () => {
+  if (workerStarted) {
+    console.log('[Worker] Worker already started.');
+    return { worker, schedulerWorker };
+  }
+  workerStarted = true;
 
-schedulerWorker.on('completed', (job) => {
-  console.log(`Scheduler Job ${job.id} completed successfully`);
-});
+  // ── Startup diagnostic ─────────────────────────────────────────────────────
+  console.log('='.repeat(60));
+  console.log('[Worker] Starting Mailtide Email Worker');
+  console.log(`[Worker] PID          : ${process.pid}`);
+  console.log(`[Worker] Concurrency  : 3`);
+  console.log(`[Worker] Limiter      : max=1, duration=600ms`);
+  console.log(`[Worker] SENDER_EMAIL : ${process.env.SENDER_EMAIL || '⚠️  NOT SET'}`);
+  console.log(`[Worker] NODE_ENV     : ${process.env.NODE_ENV}`);
+  console.log(`[Worker] BASE_URL     : ${BASE_URL}`);
+  console.log(`[Worker] RESEND KEY   : ${process.env.RESEND_API_KEY ? 're_***' + process.env.RESEND_API_KEY.slice(-4) : '⚠️  NOT SET'}`);
+  console.log('='.repeat(60));
 
-schedulerWorker.on('failed', (job, err) => {
-  console.error(`Scheduler Job ${job?.id ?? 'unknown'} failed: ${err.message}`);
-});
+  // Connect to MongoDB if not already connected
+  if (mongoose.connection.readyState === 0) {
+    try {
+      await mongoose.connect(MONGODB_URI);
+      console.log('Worker connected to MongoDB successfully.');
+    } catch (err) {
+      console.error(`Worker MongoDB connection error: ${err.message}`);
+      process.exit(1);
+    }
+  } else {
+    console.log('Worker reusing existing MongoDB connection.');
+  }
 
-schedulerWorker.on('error', (err) => {
-  console.error(`Scheduler Worker error: ${err.message}`);
-});
+  connection = new Redis(REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+    tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
+  });
+
+  connection.on('error', (err) => {
+    console.error(`Redis email worker connection error: ${err.message}`);
+  });
+
+  schedulerConnection = new Redis(REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+    tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
+  });
+
+  schedulerConnection.on('error', (err) => {
+    console.error(`Redis scheduler worker connection error: ${err.message}`);
+  });
+
+  worker = new Worker('mailtide-emails', processJob, {
+    connection,
+    concurrency: 3,
+    limiter: {
+      max: 1,       // 1 job per duration window
+      duration: 600 // 600ms → ~1.6 emails/sec → safely under Resend 2 req/sec
+    },
+    drainDelay: 30,
+    stalledInterval: 300000
+  });
+
+  worker.on('completed', (job) => {
+    console.log(`Job ${job.id} completed successfully`);
+  });
+
+  worker.on('failed', async (job, err) => {
+    console.error(`Job ${job?.id ?? 'unknown'} failed: ${err.message}`);
+    if (job && job.attemptsMade >= job.opts.attempts) {
+      const { jobId } = job.data;
+      try {
+        const dbJob = await Job.findByIdAndUpdate(
+          jobId,
+          { status: 'failed' },
+          { returnDocument: 'after' }
+        );
+        if (dbJob) {
+          console.log(`[Worker] Job ${jobId} failed permanently after ${job.attemptsMade} attempts.`);
+          await checkCampaignCompletion(dbJob.campaignId);
+        }
+      } catch (dbErr) {
+        console.error(`[Worker] Failed to update job ${jobId} to failed status in DB: ${dbErr.message}`);
+      }
+    } else if (job) {
+      console.log(`[Worker] Job ${job.id} failed, will retry. Attempt ${job.attemptsMade} of ${job.opts.attempts}`);
+    }
+  });
+
+  worker.on('error', (err) => {
+    console.error(`Worker error: ${err.message}`);
+  });
+
+  schedulerWorker = new Worker('mailtide-campaign-scheduler', processScheduleJob, {
+    connection: schedulerConnection,
+    concurrency: 2,
+    drainDelay: 30,
+    stalledInterval: 300000
+  });
+
+  schedulerWorker.on('completed', (job) => {
+    console.log(`Scheduler Job ${job.id} completed successfully`);
+  });
+
+  schedulerWorker.on('failed', (job, err) => {
+    console.error(`Scheduler Job ${job?.id ?? 'unknown'} failed: ${err.message}`);
+  });
+
+  schedulerWorker.on('error', (err) => {
+    console.error(`Scheduler Worker error: ${err.message}`);
+  });
+
+  return { worker, schedulerWorker };
+};
+
+export const stopWorker = async () => {
+  if (!workerStarted) return;
+  try {
+    if (worker) await worker.close();
+    if (schedulerWorker) await schedulerWorker.close();
+    if (connection) await connection.quit();
+    if (schedulerConnection) await schedulerConnection.quit();
+    console.log('Worker and Scheduler stopped successfully.');
+    workerStarted = false;
+  } catch (err) {
+    console.error(`Error stopping workers: ${err.message}`);
+    throw err;
+  }
+};
 
 const shutdown = async () => {
   try {
-    await worker.close();
-    await schedulerWorker.close();
-    await connection.quit();
-    await schedulerConnection.quit();
+    await stopWorker();
     await mongoose.disconnect();
     console.log('Worker and Scheduler shutdown successfully.');
     process.exit(0);
@@ -354,7 +386,19 @@ const shutdown = async () => {
   }
 };
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (isMain) {
+  startWorker().catch((err) => {
+    console.error('Failed to start worker directly:', err);
+    process.exit(1);
+  });
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
 
 export { worker, schedulerWorker, shutdown };

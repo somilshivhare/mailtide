@@ -16,6 +16,7 @@ import analyticsRouter from './routes/analytics.js';
 import aiRouter from './routes/ai.js';
 import webhooksRouter from './routes/webhooks.js';
 import errorMiddleware from './middleware/errorMiddleware.js';
+import { startWorker, stopWorker } from './worker.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -126,6 +127,15 @@ const connectDB = async () => {
 
 const start = async () => {
   await connectDB();
+
+  try {
+    await startWorker();
+    console.log('Worker and Scheduler initialized successfully inside server process.');
+  } catch (workerErr) {
+    console.error(`Failed to start workers: ${workerErr.message}`);
+    process.exit(1);
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Express trust proxy setting: ${app.get('trust proxy')}`);
@@ -134,7 +144,9 @@ const start = async () => {
   const shutdown = () => {
     server.close(async () => {
       try {
+        await stopWorker();
         await mongoose.disconnect();
+        console.log('Server and workers shutdown successfully.');
         process.exit(0);
       } catch (err) {
         console.error(`Shutdown error: ${err.message}`);
