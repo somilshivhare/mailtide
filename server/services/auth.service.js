@@ -30,12 +30,7 @@ export const registerUser = async ({ name, email, password }) => {
 
   return {
     token,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt
-    }
+    user: user.toJSON()
   };
 };
 
@@ -65,12 +60,7 @@ export const loginUser = async ({ email, password }) => {
 
   return {
     token,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt
-    }
+    user: user.toJSON()
   };
 };
 

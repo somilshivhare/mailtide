@@ -2,6 +2,24 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import User from '../models/User.js';
 
+const detectTimezone = (req, profile) => {
+  const locale = profile._json && (profile._json.locale || profile.locale);
+  if (locale) {
+    const l = locale.toLowerCase();
+    if (l.includes('in')) return 'Asia/Kolkata';
+    if (l.includes('us')) return 'America/New_York';
+    if (l.includes('gb') || l.includes('uk')) return 'Europe/London';
+    if (l.includes('ca')) return 'America/Toronto';
+    if (l.includes('au')) return 'Australia/Sydney';
+    if (l.includes('de')) return 'Europe/Berlin';
+    if (l.includes('fr')) return 'Europe/Paris';
+    if (l.includes('jp')) return 'Asia/Tokyo';
+    if (l.includes('cn')) return 'Asia/Shanghai';
+    if (l.includes('br')) return 'America/Sao_Paulo';
+  }
+  return 'UTC';
+};
+
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret',
@@ -29,16 +47,20 @@ passport.use(new GoogleStrategy({
           updated = true;
         }
 
-        // Set provider to 'google' if it is local but Google ID was missing, or keep provider local?
-        // Usually, keeping provider local or updating it is fine, but we must link it. Let's make sure
-        // we set provider as 'google' if it is not 'google' and we are linking. Actually, we can update it or keep it.
-        // Let's update provider to 'google' if it is not already set, or leave it. Setting it to 'google' is fine.
-        
         // Update avatar if they don't have one
         if (!user.avatar || !user.avatar.url) {
           const photoUrl = profile.photos && profile.photos[0] && profile.photos[0].value;
           if (photoUrl) {
             user.avatar = { url: photoUrl, publicId: '' };
+            updated = true;
+          }
+        }
+
+        // Set timezone if currently default UTC or empty
+        if (!user.timezone || user.timezone === 'UTC') {
+          const detectedTz = detectTimezone(req, profile);
+          if (detectedTz !== 'UTC') {
+            user.timezone = detectedTz;
             updated = true;
           }
         }
@@ -65,7 +87,11 @@ passport.use(new GoogleStrategy({
           googleId: profile.id,
           provider: 'google',
           avatar: photoUrl ? { url: photoUrl, publicId: '' } : { url: '', publicId: '' },
-          emailVerified: true
+          emailVerified: true,
+          timezone: detectTimezone(req, profile),
+          company: '',
+          website: '',
+          bio: ''
         });
 
         return done(null, user);

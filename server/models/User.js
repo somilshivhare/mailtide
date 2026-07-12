@@ -70,8 +70,9 @@ const UserSchema = new Schema({
   }
 });
 
-const isCloudinaryUrl = (url) => {
-  return typeof url === 'string' && url.includes('cloudinary.com');
+const isExternalUrl = (url) => {
+  if (typeof url !== 'string') return false;
+  return url.includes('cloudinary.com') || url.includes('googleusercontent.com');
 };
 
 // Helper to format avatar URL dynamically based on environment BASE_URL
@@ -85,7 +86,10 @@ const formatAvatarUrl = (avatar) => {
   }
 
   if (!avatarUrl) return '';
-  if (isCloudinaryUrl(avatarUrl)) return avatarUrl;
+  if (avatarUrl.startsWith('/a/')) {
+    return `https://lh3.googleusercontent.com${avatarUrl}`;
+  }
+  if (isExternalUrl(avatarUrl)) return avatarUrl;
   const envBaseUrl = process.env.BASE_URL;
   if (!envBaseUrl) {
     throw new Error('BASE_URL environment variable is missing');
@@ -95,7 +99,7 @@ const formatAvatarUrl = (avatar) => {
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
     try {
       const url = new URL(avatarUrl);
-      if (isCloudinaryUrl(url.href)) return url.href;
+      if (isExternalUrl(url.href)) return url.href;
       return `${baseUrl}${url.pathname}`;
     } catch (err) {
       return avatarUrl;
@@ -108,8 +112,8 @@ const formatAvatarUrl = (avatar) => {
 // Pre-save hook to migrate/sanitize stored avatar URLs to relative paths
 UserSchema.pre('save', function () {
   if (this.avatar && this.avatar.url) {
-    if (isCloudinaryUrl(this.avatar.url)) {
-      // Keep full Cloudinary URL
+    if (isExternalUrl(this.avatar.url)) {
+      // Keep full Cloudinary/Google URL
       return;
     }
     if (this.avatar.url.startsWith('http://') || this.avatar.url.startsWith('https://')) {
