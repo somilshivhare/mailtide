@@ -15,6 +15,7 @@ import campaignsRouter from './routes/campaign.routes.js';
 import analyticsRouter from './routes/analytics.js';
 import aiRouter from './routes/ai.js';
 import webhooksRouter from './routes/webhooks.js';
+import webhookRoutes from './routes/webhook.routes.js';
 import errorMiddleware from './middleware/errorMiddleware.js';
 import { startWorker, stopWorker } from './worker.js';
 
@@ -106,6 +107,7 @@ app.use('/api/subscribers', subscribersRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/webhooks', webhookRoutes);
 app.use('/', webhooksRouter);
 
 app.get('/', (req, res) => {

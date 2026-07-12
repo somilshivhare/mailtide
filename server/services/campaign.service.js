@@ -328,7 +328,11 @@ class CampaignService {
     let htmlBody = campaign.body;
 
     // Clean up local development localhost URLs to use dynamic BASE_URL
-    const cleanBaseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
+    const baseUrl = process.env.BASE_URL;
+    if (!baseUrl) {
+      throw new Error('BASE_URL environment variable is missing');
+    }
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
     if (htmlBody) {
       htmlBody = htmlBody.replace(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s"'>]+)/g, (match, port, path) => {
         return `${cleanBaseUrl}${path}`;

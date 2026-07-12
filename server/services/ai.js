@@ -284,11 +284,6 @@ Cheers,
 The {{campaign_name}} Team`;
     }
 
-    if (customPrompt) {
-      body += `<p><em>Draft customized per instructions: "${customPrompt}"</em></p>`;
-      plainText += `\n\n[Draft customized per instructions: "${customPrompt}"]`;
-    }
-
     reasoning = `Aligned CTA with '${ctaType}' and focused copy on '${goal}' in the ${industry} industry. Tone matches ${cleanTone} for ${cleanAudience}.`;
 
     return {

@@ -51,6 +51,10 @@ const CampaignSchema = new Schema({
     type: Number,
     default: 0
   },
+  totalComplained: {
+    type: Number,
+    default: 0
+  },
   scheduledAt: {
     type: Date
   },

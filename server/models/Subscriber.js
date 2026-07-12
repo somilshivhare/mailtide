@@ -20,7 +20,7 @@ const SubscriberSchema = new Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'invalid', 'unsubscribed'],
+    enum: ['active', 'invalid', 'unsubscribed', 'bounced', 'complained'],
     default: 'active'
   },
   unsubscribeToken: {

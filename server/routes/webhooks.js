@@ -1,161 +1,8 @@
 import { Router } from 'express';
-import { Webhook } from 'standardwebhooks';
 import Job from '../models/Job.js';
-import Campaign from '../models/Campaign.js';
-import Subscriber from '../models/Subscriber.js';
+import { processResendWebhook } from '../services/webhook.service.js';
 
 const router = Router();
-
-/**
- * Shared helper to process Resend webhook events.
- */
-const processWebhookEvent = async (type, data) => {
-  const emailId = data?.email_id;
-  if (!emailId) {
-    return;
-  }
-
-  const job = await Job.findOne({ resendId: emailId });
-  if (!job) {
-    console.warn(`Webhook: Job not found for resendId: ${emailId}`);
-    return;
-  }
-
-  const campaignId = job.campaignId;
-
-  switch (type) {
-    case 'email.delivered': {
-      if (job.status !== 'delivered' && job.status !== 'opened' && job.status !== 'clicked') {
-        job.status = 'delivered';
-        await job.save();
-        
-        await Campaign.findByIdAndUpdate(campaignId, {
-          $inc: { totalDelivered: 1 }
-        });
-      }
-      break;
-    }
-
-    case 'email.opened': {
-      if (!job.opened) {
-        job.status = 'opened';
-        job.opened = true;
-        job.openedAt = new Date();
-        await job.save();
-
-        await Campaign.findByIdAndUpdate(campaignId, {
-          $inc: { totalOpened: 1 }
-        });
-      }
-      break;
-    }
-
-    case 'email.clicked': {
-      const isFirstClick = !job.clicked;
-      
-      job.status = 'clicked';
-      job.clicked = true;
-      job.clickedAt = new Date();
-      await job.save();
-
-      if (isFirstClick) {
-        await Campaign.findByIdAndUpdate(campaignId, {
-          $inc: { totalClicked: 1 }
-        });
-        
-        // Also set opened if it wasn't already (clicked implies opened)
-        if (!job.opened) {
-          job.opened = true;
-          job.openedAt = new Date();
-          await job.save();
-          await Campaign.findByIdAndUpdate(campaignId, {
-            $inc: { totalOpened: 1 }
-          });
-        }
-      }
-      break;
-    }
-
-    case 'email.bounced': {
-      if (!job.bounced) {
-        job.status = 'bounced';
-        job.bounced = true;
-        await job.save();
-
-        await Campaign.findByIdAndUpdate(campaignId, {
-          $inc: { totalBounced: 1 }
-        });
-
-        // Process subscriber bounce status
-        const subscriber = await Subscriber.findById(job.subscriberId);
-        if (subscriber) {
-          const isSoftBounce = data?.bounce_type === 'Transient'; // Resend soft-bounce indicator
-          
-          if (!isSoftBounce) {
-            // Hard bounce: mark invalid permanently
-            subscriber.status = 'invalid';
-            subscriber.bounced = true;
-          } else {
-            // Soft bounce: increment
-            subscriber.softBounces += 1;
-            if (subscriber.softBounces >= 3) {
-              subscriber.status = 'invalid';
-              subscriber.bounced = true;
-            }
-          }
-          await subscriber.save();
-        }
-      }
-      break;
-    }
-
-    default:
-      console.log(`Webhook: Unhandled event type: ${type}`);
-  }
-};
-
-/**
- * POST /api/webhooks/resend
- * Resend event webhooks.
- * Performs Svix signature validation if WEBHOOK_SECRET is set.
- */
-router.post('/api/webhooks/resend', async (req, res) => {
-  const webhookSecret = process.env.WEBHOOK_SECRET;
-
-  if (webhookSecret) {
-    const headers = req.headers;
-    const payload = req.rawBody;
-
-    if (!payload) {
-      return res.status(400).json({ error: 'Missing raw request body required for signature verification' });
-    }
-
-    try {
-      const wh = new Webhook(webhookSecret);
-      wh.verify(payload, headers);
-    } catch (err) {
-      console.error(`Webhook signature verification failed: ${err.message}`);
-      return res.status(400).json({ error: 'Invalid webhook signature' });
-    }
-  } else {
-    console.warn('Warning: WEBHOOK_SECRET env var is missing. Webhooks are running in UNVERIFIED mode.');
-  }
-
-  // Acknowledge receipt 200 OK immediately
-  res.sendStatus(200);
-
-  const payload = req.body;
-  if (!payload || !payload.type) {
-    return;
-  }
-
-  // Process in the background
-  try {
-    await processWebhookEvent(payload.type, payload.data);
-  } catch (err) {
-    console.error(`Error processing webhook event in background: ${err.message}`);
-  }
-});
 
 /**
  * POST /api/webhooks/simulate
@@ -183,7 +30,8 @@ router.post('/api/webhooks/simulate', async (req, res) => {
       bounce_type: bounceType || 'Permanent'
     };
 
-    await processWebhookEvent(type, mockData);
+    const mockEventId = `sim_evt_${Date.now()}_${Math.round(Math.random() * 1e9)}`;
+    await processResendWebhook(mockEventId, type, mockData);
 
     const updatedJob = await Job.findById(job._id);
     res.status(200).json({

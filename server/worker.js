@@ -8,9 +8,9 @@ import Subscriber from './models/Subscriber.js';
 import emailService from './services/email/index.js';
 import { emailQueue } from './queues/emailQueue.js';
 
-const { REDIS_URL, MONGODB_URI, BASE_URL } = process.env;
-if (!REDIS_URL || !MONGODB_URI) {
-  console.error('Error: REDIS_URL and MONGODB_URI env vars are required');
+const { REDIS_URL, MONGODB_URI } = process.env;
+if (!REDIS_URL || !MONGODB_URI || !process.env.BASE_URL) {
+  console.error('Error: REDIS_URL, MONGODB_URI, and BASE_URL env vars are required');
   process.exit(1);
 }
 
@@ -104,7 +104,11 @@ const processJob = async (bullJob) => {
     let htmlBody = campaign.body;
 
     // Clean up local development localhost URLs to use dynamic BASE_URL
-    const cleanBaseUrl = (BASE_URL || '').replace(/\/$/, '');
+    const baseUrl = process.env.BASE_URL;
+    if (!baseUrl) {
+      throw new Error('BASE_URL environment variable is missing');
+    }
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
     if (htmlBody) {
       htmlBody = htmlBody.replace(/https?:\/\/localhost(:\d+)?(\/uploads\/[^\s"'>]+)/g, (match, port, path) => {
         return `${cleanBaseUrl}${path}`;
@@ -259,7 +263,7 @@ export const startWorker = async () => {
   console.log(`[Worker] Limiter      : max=1, duration=600ms`);
   console.log(`[Worker] SENDER_EMAIL : ${process.env.SENDER_EMAIL || '⚠️  NOT SET'}`);
   console.log(`[Worker] NODE_ENV     : ${process.env.NODE_ENV}`);
-  console.log(`[Worker] BASE_URL     : ${BASE_URL}`);
+  console.log(`[Worker] BASE_URL     : ${process.env.BASE_URL}`);
   console.log(`[Worker] RESEND KEY   : ${process.env.RESEND_API_KEY ? 're_***' + process.env.RESEND_API_KEY.slice(-4) : '⚠️  NOT SET'}`);
   console.log('='.repeat(60));
 

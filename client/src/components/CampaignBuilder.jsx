@@ -147,9 +147,11 @@ export default function CampaignBuilder({ initialData = {}, onSave, onSend, savi
   const insertImage = (url) => {
     const quill = quillRef.current?.getEditor();
     if (quill) {
-      const range = quill.getSelection(true);
-      quill.insertEmbed(range.index, 'image', url);
-      quill.setSelection(range.index + 1);
+      const length = quill.getLength();
+      const insertPosition = Math.max(0, length - 1);
+      quill.insertText(insertPosition, '\n');
+      quill.insertEmbed(insertPosition + 1, 'image', url);
+      quill.setSelection(insertPosition + 2);
     } else {
       const currentBody = watch('body') || '';
       setValue('body', `${currentBody}<p><img src="${url}" alt="Campaign Image" /></p>`, { shouldValidate: true });

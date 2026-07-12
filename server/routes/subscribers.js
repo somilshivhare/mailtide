@@ -310,8 +310,11 @@ router.post('/:id/send-direct', auth, attachmentUpload.array('attachments', 5), 
     htmlBody = htmlBody.replace(/(\{\{\s*name\s*\}\})/g, subscriber.name);
     htmlBody = htmlBody.replace(/(\{\{\s*email\s*\}\})/g, subscriber.email);
 
-    // 3. Build and append unsubscribe link
-    const unsubscribeLink = `${process.env.BASE_URL}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
+    const baseUrl = process.env.BASE_URL;
+    if (!baseUrl) {
+      throw new Error('BASE_URL environment variable is missing');
+    }
+    const unsubscribeLink = `${baseUrl.replace(/\/$/, '')}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
     const unsubscribeFooter = `
       <br/>
       <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0 15px 0;" />

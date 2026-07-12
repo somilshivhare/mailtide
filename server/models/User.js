@@ -70,7 +70,11 @@ const formatAvatarUrl = (avatar) => {
 
   if (!avatarUrl) return '';
   if (isCloudinaryUrl(avatarUrl)) return avatarUrl;
-  const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
+  const envBaseUrl = process.env.BASE_URL;
+  if (!envBaseUrl) {
+    throw new Error('BASE_URL environment variable is missing');
+  }
+  const baseUrl = envBaseUrl.replace(/\/$/, '');
   
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
     try {
