@@ -123,9 +123,11 @@ export const googleCallback = async (req, res) => {
     const token = authService.generateToken({ id: user._id, email: user.email });
     res.cookie('token', token, cookieOptions);
     
-    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/`);
+    const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+    return res.redirect(`${clientUrl}/?token=${token}`);
   } catch (err) {
     console.error(`Google callback controller error: ${err.message}`);
-    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=server_error`);
+    const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+    return res.redirect(`${clientUrl}/login?error=server_error`);
   }
 };

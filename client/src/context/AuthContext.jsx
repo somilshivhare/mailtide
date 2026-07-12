@@ -9,26 +9,45 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const loadUser = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
       try {
+        // 1. Check for token in URL query parameters (Google OAuth callback bootstrap)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        
+        let token = localStorage.getItem('token');
+        
+        if (urlToken) {
+          localStorage.setItem('token', urlToken);
+          token = urlToken;
+          
+          // Clean the query parameter from the URL address bar
+          const newUrl = window.location.pathname + window.location.hash;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+
         const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+        
+        // Define request headers dynamically
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Fetch user info. Browser automatically attaches HttpOnly cookie due to withCredentials
         const res = await axios.get(`${baseUrl}/api/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
+          headers,
           withCredentials: true
         });
+
         setUser(res.data);
+
+        // If authenticated via cookie but local storage is empty, initialize it
+        if (!token) {
+          localStorage.setItem('token', 'cookie_auth_active');
+        }
       } catch (err) {
-        console.log('No active session found or session expired.');
+        console.log('No active session found or session expired:', err.message);
         setUser(null);
-        // Clear legacy token if present
         localStorage.removeItem('token');
       } finally {
         setLoading(false);
