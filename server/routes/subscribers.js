@@ -314,7 +314,7 @@ router.post('/:id/send-direct', auth, attachmentUpload.array('attachments', 5), 
     if (!baseUrl) {
       throw new Error('BASE_URL environment variable is missing');
     }
-    const unsubscribeLink = `${baseUrl.replace(/\/$/, '')}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
+    const unsubscribeLink = `${baseUrl.replace(/\/$/, '')}/api/unsubscribe?token=${subscriber.unsubscribeToken}&campaignId=${campaign._id}`;
     const unsubscribeFooter = `
       <br/>
       <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0 15px 0;" />

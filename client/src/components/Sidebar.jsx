@@ -13,7 +13,6 @@ const NAV_ITEMS = [
   { name: 'Campaigns',   path: '/campaigns',    icon: Mail },
   { name: 'Subscribers', path: '/subscribers',  icon: Users },
   { name: 'Analytics',   path: '/analytics',    icon: BarChart3 },
-  { name: 'Queue',       path: '/queue',        icon: Zap },
 ];
 
 const BOTTOM_ITEMS = [

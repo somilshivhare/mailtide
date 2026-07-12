@@ -55,6 +55,10 @@ const CampaignSchema = new Schema({
     type: Number,
     default: 0
   },
+  totalUnsubscribed: {
+    type: Number,
+    default: 0
+  },
   scheduledAt: {
     type: Date
   },

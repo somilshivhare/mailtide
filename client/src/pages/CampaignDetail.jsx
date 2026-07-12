@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Loader2, Play, Sparkles, RefreshCw, Trash2,
   ShieldAlert, Eye, Send, CheckCircle2, Clock, Zap, Mail,
-  FileText, Users, MousePointer, TrendingUp
+  FileText, Users, MousePointer, TrendingUp, AlertOctagon,
+  Megaphone, UserX
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { campaignsAPI, aiAPI } from '../services/api.js';
@@ -211,6 +212,8 @@ export default function CampaignDetail() {
   const openRate = campaign.totalDelivered > 0 ? (campaign.totalOpened / campaign.totalDelivered) * 100 : 0;
   const clickRate = campaign.totalDelivered > 0 ? (campaign.totalClicked / campaign.totalDelivered) * 100 : 0;
   const bounceRate = campaign.totalSubscribers > 0 ? (campaign.totalBounced / campaign.totalSubscribers) * 100 : 0;
+  const complaintRate = campaign.totalSubscribers > 0 ? ((campaign.totalComplained || 0) / campaign.totalSubscribers) * 100 : 0;
+  const unsubscribeRate = campaign.totalSubscribers > 0 ? ((campaign.totalUnsubscribed || 0) / campaign.totalSubscribers) * 100 : 0;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5 animate-fade-in">
@@ -301,7 +304,7 @@ export default function CampaignDetail() {
       {!isDraft && (
         <div className="space-y-5">
           {/* Stats row */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatsCard title="Audience" value={campaign.totalSubscribers} description="Targeted" icon={Users} />
             <StatsCard title="Sent" value={campaign.totalSent} description="Processed" icon={Mail} />
             <StatsCard
@@ -327,6 +330,30 @@ export default function CampaignDetail() {
               trend={formatPercent(clickRate)}
               trendType={clickRate > 3 ? 'positive' : 'neutral'}
               icon={MousePointer}
+            />
+            <StatsCard
+              title="Bounced"
+              value={campaign.totalBounced}
+              description="Bounce rate"
+              trend={formatPercent(bounceRate)}
+              trendType={bounceRate > 5 ? 'negative' : 'neutral'}
+              icon={AlertOctagon}
+            />
+            <StatsCard
+              title="Complained"
+              value={campaign.totalComplained || 0}
+              description="Complaint rate"
+              trend={formatPercent(complaintRate)}
+              trendType={complaintRate > 0.1 ? 'negative' : 'neutral'}
+              icon={Megaphone}
+            />
+            <StatsCard
+              title="Unsubscribed"
+              value={campaign.totalUnsubscribed || 0}
+              description="Unsubscribe rate"
+              trend={formatPercent(unsubscribeRate)}
+              trendType={unsubscribeRate > 1 ? 'negative' : 'neutral'}
+              icon={UserX}
             />
           </div>
 

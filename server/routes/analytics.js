@@ -19,21 +19,25 @@ router.get('/overview', auth, async (req, res) => {
     const totalCampaigns = await Campaign.countDocuments({ creatorId });
     const totalSubscribers = await Subscriber.countDocuments({ creatorId, status: 'active' });
 
-    // Aggregate rates from sent campaigns
-    const sentCampaigns = await Campaign.find({
-      creatorId,
-      status: 'sent',
-      totalDelivered: { $gt: 0 }
-    });
+    // Aggregate rates and totals from all campaigns
+    const campaigns = await Campaign.find({ creatorId });
 
+    let totalSent = 0;
     let totalDelivered = 0;
     let totalOpened = 0;
     let totalClicked = 0;
+    let totalBounced = 0;
+    let totalComplained = 0;
+    let totalUnsubscribed = 0;
 
-    sentCampaigns.forEach((campaign) => {
+    campaigns.forEach((campaign) => {
+      totalSent += campaign.totalSent || 0;
       totalDelivered += campaign.totalDelivered || 0;
       totalOpened += campaign.totalOpened || 0;
       totalClicked += campaign.totalClicked || 0;
+      totalBounced += campaign.totalBounced || 0;
+      totalComplained += campaign.totalComplained || 0;
+      totalUnsubscribed += campaign.totalUnsubscribed || 0;
     });
 
     const avgOpenRate = totalDelivered > 0 ? (totalOpened / totalDelivered) * 100 : 0;
@@ -43,7 +47,14 @@ router.get('/overview', auth, async (req, res) => {
       avgOpenRate: Math.round(avgOpenRate * 10) / 10,
       avgClickRate: Math.round(avgClickRate * 10) / 10,
       totalCampaigns,
-      totalSubscribers
+      totalSubscribers,
+      totalSent,
+      totalDelivered,
+      totalOpened,
+      totalClicked,
+      totalBounced,
+      totalComplained,
+      totalUnsubscribed
     });
   } catch (err) {
     console.error(`Get analytics overview error: ${err.message}`);

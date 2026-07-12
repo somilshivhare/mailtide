@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import Job from '../models/Job.js';
+import Campaign from '../models/Campaign.js';
+import Subscriber from '../models/Subscriber.js';
 import { processResendWebhook } from '../services/webhook.service.js';
 
 const router = Router();
@@ -50,7 +52,7 @@ router.post('/api/webhooks/simulate', async (req, res) => {
  * Renders a dark-themed confirmation HTML page.
  */
 router.get('/api/unsubscribe', async (req, res) => {
-  const { token } = req.query;
+  const { token, campaignId } = req.query;
 
   if (!token) {
     return res.status(400).send('<h1>Invalid Link</h1><p>Missing unsubscribe token.</p>');
@@ -66,6 +68,18 @@ router.get('/api/unsubscribe', async (req, res) => {
     subscriber.status = 'unsubscribed';
     subscriber.unsubscribed = true;
     await subscriber.save();
+    console.log(`[Webhook] Unsubscribed. Subscriber: ${subscriber._id}`);
+
+    if (campaignId) {
+      const campaign = await Campaign.findByIdAndUpdate(campaignId, {
+        $inc: { totalUnsubscribed: 1 }
+      });
+      if (campaign) {
+        console.log(`[Webhook] Unsubscribed (Campaign Updated). Campaign: ${campaignId} | Subscriber: ${subscriber._id}`);
+      } else {
+        console.warn(`[Webhook] Campaign not found for unsubscribe update: ${campaignId}`);
+      }
+    }
 
     // Render a high-quality confirmation page
     res.setHeader('Content-Type', 'text/html');

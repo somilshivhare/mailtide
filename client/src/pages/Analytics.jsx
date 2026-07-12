@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, TrendingUp, Eye, MousePointer, Users, ArrowUp, Minus } from 'lucide-react';
+import { Loader2, TrendingUp, Eye, MousePointer, Users, ArrowUp, Minus, CheckCircle2, AlertOctagon, Megaphone, UserX, Mail } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
@@ -105,6 +105,20 @@ export default function Analytics() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k, i) => <StatsCard key={i} {...k} />)}
+      </div>
+
+      {/* Engagement Totals */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-text">Overall Engagement Totals</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+          <StatsCard title="Total Sent" value={overview?.totalSent ?? 0} icon={Mail} trend="Emails sent" trendType="neutral" />
+          <StatsCard title="Total Delivered" value={overview?.totalDelivered ?? 0} icon={CheckCircle2} trend="Delivered" trendType="neutral" />
+          <StatsCard title="Total Opens" value={overview?.totalOpened ?? 0} icon={Eye} trend="Opened" trendType="neutral" />
+          <StatsCard title="Total Clicks" value={overview?.totalClicked ?? 0} icon={MousePointer} trend="Clicked" trendType="neutral" />
+          <StatsCard title="Total Bounces" value={overview?.totalBounced ?? 0} icon={AlertOctagon} trend="Bounced" trendType="neutral" />
+          <StatsCard title="Total Complaints" value={overview?.totalComplained ?? 0} icon={Megaphone} trend="Complaints" trendType="neutral" />
+          <StatsCard title="Total Unsubscribes" value={overview?.totalUnsubscribed ?? 0} icon={UserX} trend="Unsubscribed" trendType="neutral" />
+        </div>
       </div>
 
       {/* Charts row */}

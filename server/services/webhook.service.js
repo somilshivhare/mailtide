@@ -8,6 +8,8 @@ import WebhookEvent from '../models/WebhookEvent.js';
  * Implements strict idempotency using WebhookEvent collection.
  */
 export const processResendWebhook = async (eventId, type, data) => {
+  console.log(`[Webhook] Event type: ${type}`);
+
   // 1. Idempotency Check: Save eventId to DB. If it fails with duplicate key error, ignore.
   try {
     await WebhookEvent.create({ eventId });
@@ -25,6 +27,7 @@ export const processResendWebhook = async (eventId, type, data) => {
     console.warn(`[Webhook] Missing email_id in event data. Event ID: ${eventId}`);
     return;
   }
+  console.log(`[Webhook] Resend Email ID: ${emailId}`);
 
   // 2. Correlation: Find the job using the Resend Email ID (resendId)
   const job = await Job.findOne({ resendId: emailId });
@@ -32,8 +35,10 @@ export const processResendWebhook = async (eventId, type, data) => {
     console.warn(`[Webhook] Job not found for resendId: ${emailId}`);
     return;
   }
+  console.log(`[Webhook] Job found. Job ID: ${job._id} | Campaign: ${job.campaignId} | Subscriber: ${job.subscriberId}`);
 
   const campaignId = job.campaignId;
+  console.log(`[Webhook] Campaign found: ${campaignId}`);
 
   // 3. Process events
   switch (type) {
@@ -45,7 +50,7 @@ export const processResendWebhook = async (eventId, type, data) => {
         await Campaign.findByIdAndUpdate(campaignId, {
           $inc: { totalSent: 1 }
         });
-        console.log(`[Webhook] Sent. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+        console.log(`[Webhook] Analytics updated: email.sent. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
       }
       break;
     }
@@ -58,7 +63,7 @@ export const processResendWebhook = async (eventId, type, data) => {
         await Campaign.findByIdAndUpdate(campaignId, {
           $inc: { totalDelivered: 1 }
         });
-        console.log(`[Webhook] Delivered. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+        console.log(`[Webhook] Analytics updated: email.delivered. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
       }
       break;
     }
@@ -73,7 +78,7 @@ export const processResendWebhook = async (eventId, type, data) => {
         await Campaign.findByIdAndUpdate(campaignId, {
           $inc: { totalOpened: 1 }
         });
-        console.log(`[Webhook] Opened. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+        console.log(`[Webhook] Analytics updated: email.opened. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
       }
       break;
     }
@@ -89,7 +94,7 @@ export const processResendWebhook = async (eventId, type, data) => {
         await Campaign.findByIdAndUpdate(campaignId, {
           $inc: { totalClicked: 1 }
         });
-        console.log(`[Webhook] Clicked. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+        console.log(`[Webhook] Analytics updated: email.clicked. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
 
         // If the email wasn't opened, mark it as opened
         if (!job.opened) {
@@ -99,7 +104,7 @@ export const processResendWebhook = async (eventId, type, data) => {
           await Campaign.findByIdAndUpdate(campaignId, {
             $inc: { totalOpened: 1 }
           });
-          console.log(`[Webhook] Opened (via Clicked). Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+          console.log(`[Webhook] Analytics updated: email.opened (via Clicked). Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
         }
       }
       break;
@@ -114,16 +119,18 @@ export const processResendWebhook = async (eventId, type, data) => {
         await Campaign.findByIdAndUpdate(campaignId, {
           $inc: { totalBounced: 1 }
         });
+        console.log(`[Webhook] Analytics updated: email.bounced. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
 
         // Update subscriber status as single source of truth
         const subscriber = await Subscriber.findById(job.subscriberId);
         if (subscriber) {
+          console.log(`[Webhook] Subscriber found: ${job.subscriberId}`);
           subscriber.status = 'bounced';
           subscriber.bounced = true;
           await subscriber.save();
-          console.log(`[Webhook] Bounced. Campaign: ${campaignId} | Subscriber: ${job.subscriberId} (Subscriber status updated to bounced)`);
+          console.log(`[Webhook] Subscriber status updated: bounced. Subscriber: ${job.subscriberId}`);
         } else {
-          console.log(`[Webhook] Bounced. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+          console.warn(`[Webhook] Subscriber not found: ${job.subscriberId}`);
         }
       }
       break;
@@ -134,16 +141,17 @@ export const processResendWebhook = async (eventId, type, data) => {
       await Campaign.findByIdAndUpdate(campaignId, {
         $inc: { totalComplained: 1 }
       });
-      console.log(`[Webhook] Complained (Campaign Updated). Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+      console.log(`[Webhook] Analytics updated: email.complained. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
 
       // Update subscriber status as single source of truth
       const subscriber = await Subscriber.findById(job.subscriberId);
       if (subscriber) {
+        console.log(`[Webhook] Subscriber found: ${job.subscriberId}`);
         subscriber.status = 'complained';
         await subscriber.save();
-        console.log(`[Webhook] Complained. Campaign: ${campaignId} | Subscriber: ${job.subscriberId} (Subscriber status updated to complained)`);
+        console.log(`[Webhook] Subscriber status updated: complained. Subscriber: ${job.subscriberId}`);
       } else {
-        console.log(`[Webhook] Complained. Campaign: ${campaignId} | Subscriber: ${job.subscriberId}`);
+        console.warn(`[Webhook] Subscriber not found: ${job.subscriberId}`);
       }
       break;
     }
