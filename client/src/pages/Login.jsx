@@ -40,128 +40,140 @@ export default function Login() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-[#090D16]">
-      {/* ── Left Side: Hero Section ── */}
-      <div className="w-full lg:w-[58%] xl:w-[60%] flex flex-col justify-between p-8 lg:p-12 relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-900 bg-radial-gradient">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-white">
+      {/* ── Left Side: Showcase Section ── */}
+      <div className="w-full lg:w-[55%] xl:w-[58%] flex flex-col justify-center p-8 lg:p-12 relative overflow-hidden bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-100">
         {/* Glow Effects */}
-        <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-accent/10 blur-[100px] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[50%] h-[50%] rounded-full bg-accent/5 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[40%] h-[40%] rounded-full bg-indigo-200/20 blur-[100px] pointer-events-none" />
+        
+        {/* Dotted Grid Background */}
+        <div className="absolute inset-0 opacity-[0.25]" style={{ backgroundImage: 'radial-gradient(#6366F1 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }} />
 
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2.5 z-10">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-accent to-indigo-400 text-white shadow-lg shadow-accent/20">
-            <Layers className="h-5 w-5" />
+        {/* Floating Animation Styles */}
+        <style>{`
+          @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(0.3deg); }
+          }
+          .animate-float {
+            animation: float 6s ease-in-out infinite;
+          }
+        `}</style>
+
+        <div className="flex flex-col items-center justify-center flex-1 w-full max-w-xl mx-auto space-y-10 z-10 py-12 lg:py-0">
+          
+          {/* Dashboard Preview Window */}
+          <div className="w-full bg-white/90 border border-slate-200/60 rounded-2xl shadow-xl backdrop-blur-md overflow-hidden animate-float">
+            {/* Mock Window Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-red-400/80" />
+                <div className="h-2 w-2 rounded-full bg-amber-400/80" />
+                <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                <span className="text-[10px] text-slate-400 font-medium ml-2 font-mono select-none">mailtide.me/dashboard</span>
+              </div>
+            </div>
+            
+            {/* Mock Dashboard Layout */}
+            <div className="p-5 flex gap-4">
+              {/* Mock Sidebar */}
+              <div className="w-[18%] space-y-3.5 border-r border-slate-100 pr-3.5 select-none">
+                <div className="h-2.5 w-full rounded bg-accent/20" />
+                <div className="h-2 w-5/6 rounded bg-slate-100" />
+                <div className="h-2 w-2/3 rounded bg-slate-100" />
+                <div className="h-2 w-4/5 rounded bg-slate-100" />
+              </div>
+              
+              {/* Mock Main Section */}
+              <div className="flex-1 space-y-4 select-none">
+                {/* Stats Cards */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-slate-50/60 border border-slate-100 rounded-lg p-2.5">
+                    <span className="text-[8px] text-slate-450 font-bold uppercase tracking-wider block">Total Sent</span>
+                    <span className="text-xs font-bold text-slate-800 mt-0.5 block">12,480</span>
+                  </div>
+                  <div className="bg-slate-50/60 border border-slate-100 rounded-lg p-2.5">
+                    <span className="text-[8px] text-slate-450 font-bold uppercase tracking-wider block">Open Rate</span>
+                    <span className="text-xs font-bold text-emerald-600 mt-0.5 block">32.4%</span>
+                  </div>
+                  <div className="bg-slate-50/60 border border-slate-100 rounded-lg p-2.5">
+                    <span className="text-[8px] text-slate-450 font-bold uppercase tracking-wider block">Click Rate</span>
+                    <span className="text-xs font-bold text-indigo-600 mt-0.5 block">4.8%</span>
+                  </div>
+                </div>
+                
+                {/* Curve Graph */}
+                <div className="h-28 bg-gradient-to-t from-slate-50/30 to-indigo-50/20 border border-indigo-50/60 rounded-xl p-3 relative overflow-hidden">
+                  <div className="absolute top-2 left-3">
+                    <span className="text-[8px] text-slate-400 font-semibold block">Campaign Analytics</span>
+                  </div>
+                  {/* SVG Mock Curve */}
+                  <svg className="w-full h-full pt-4" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366F1" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#6366F1" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M0,30 Q15,10 30,15 T60,5 T90,20 T100,10 L100,30 L0,30 Z" fill="url(#chartGrad)" />
+                    <path d="M0,30 Q15,10 30,15 T60,5 T90,20 T100,10" fill="none" stroke="#6366F1" strokeWidth="1" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
-          <span className="text-base font-bold text-white tracking-tight">Mailtide</span>
-        </div>
 
-        {/* Hero Copy & Feature Cards */}
-        <div className="my-auto max-w-lg space-y-8 z-10 py-12 lg:py-0">
-          <div className="space-y-4">
-            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-white tracking-tight leading-tight">
-              Email Marketing for <span className="bg-clip-text text-transparent bg-gradient-to-r from-accent via-indigo-300 to-white">Modern Teams</span>
+          {/* Copy Text */}
+          <div className="text-center space-y-3 max-w-md">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+              AI-Powered <span className="bg-clip-text text-transparent bg-gradient-to-r from-accent to-indigo-600">Email Marketing</span>
             </h1>
-            <p className="text-sm lg:text-base text-slate-400 leading-relaxed">
-              Create AI-powered campaigns, automate email delivery, and track engagement with real-time analytics.
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Create campaigns, automate email delivery, and track engagement with real-time analytics.
             </p>
           </div>
 
-          {/* Features Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white/[0.03] border border-white/[0.07] backdrop-blur-md rounded-2xl p-4 hover:bg-white/[0.05] transition-all duration-200 group">
-              <div className="h-8 w-8 rounded-lg bg-accent/15 flex items-center justify-center text-accent mb-3 group-hover:scale-110 transition-transform duration-200">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <h3 className="text-sm font-semibold text-white mb-1">AI Campaign Generation</h3>
-              <p className="text-xs text-slate-400 leading-normal">Generate engaging copy and campaign ideas instantly with Gemini AI.</p>
-            </div>
-
-            <div className="bg-white/[0.03] border border-white/[0.07] backdrop-blur-md rounded-2xl p-4 hover:bg-white/[0.05] transition-all duration-200 group">
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 mb-3 group-hover:scale-110 transition-transform duration-200">
-                <BarChart3 className="h-4 w-4" />
-              </div>
-              <h3 className="text-sm font-semibold text-white mb-1">Real-Time Analytics</h3>
-              <p className="text-xs text-slate-400 leading-normal">Track delivery rates, opens, clicks, bounces, and complaints atomically.</p>
-            </div>
-
-            <div className="bg-white/[0.03] border border-white/[0.07] backdrop-blur-md rounded-2xl p-4 hover:bg-white/[0.05] transition-all duration-200 group">
-              <div className="h-8 w-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400 mb-3 group-hover:scale-110 transition-transform duration-200">
-                <Zap className="h-4 w-4" />
-              </div>
-              <h3 className="text-sm font-semibold text-white mb-1">Queue-based Processing</h3>
-              <p className="text-xs text-slate-400 leading-normal">Scale email dispatching cleanly via BullMQ and Redis backends.</p>
-            </div>
-
-            <div className="bg-white/[0.03] border border-white/[0.07] backdrop-blur-md rounded-2xl p-4 hover:bg-white/[0.05] transition-all duration-200 group">
-              <div className="h-8 w-8 rounded-lg bg-indigo-500/15 flex items-center justify-center text-indigo-400 mb-3 group-hover:scale-110 transition-transform duration-200">
-                <Mail className="h-4 w-4" />
-              </div>
-              <h3 className="text-sm font-semibold text-white mb-1">Reliable Email Delivery</h3>
-              <p className="text-xs text-slate-400 leading-normal">Ensure inbox-perfect campaign routing powered by official Resend APIs.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Dashboard Mockup (Subtle floating animation) */}
-        <div className="relative mt-4 opacity-40 lg:opacity-70 z-0 select-none animate-float">
-          <style>{`
-            @keyframes float {
-              0%, 100% { transform: translateY(0px) rotate(0deg); }
-              50% { transform: translateY(-12px) rotate(0.5deg); }
-            }
-            .animate-float {
-              animation: float 6s ease-in-out infinite;
-            }
-          `}</style>
-          <div className="bg-slate-900/60 border border-white/10 backdrop-blur-sm rounded-2xl p-4 shadow-2xl max-w-sm ml-auto">
-            {/* Window bar */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-2.5 mb-3">
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-red-500/60" />
-                <div className="h-2 w-2 rounded-full bg-yellow-500/60" />
-                <div className="h-2 w-2 rounded-full bg-green-500/60" />
-                <span className="text-[9px] text-slate-500 ml-2 font-mono">mailtide.me/analytics</span>
-              </div>
-            </div>
-            {/* Inside Content */}
-            <div className="space-y-3">
-              <div className="h-2.5 w-2/3 rounded bg-white/10" />
-              <div className="h-2 w-full rounded bg-white/5" />
-              <div className="h-2 w-5/6 rounded bg-white/5" />
-              {/* Mini Chart Mock */}
-              <div className="h-20 rounded-lg bg-gradient-to-t from-accent/5 to-accent/20 border border-accent/15 flex items-end justify-between p-2 pt-5">
-                <div className="w-[10%] h-[30%] bg-accent/40 rounded-t-sm" />
-                <div className="w-[10%] h-[50%] bg-accent/50 rounded-t-sm" />
-                <div className="w-[10%] h-[40%] bg-accent/40 rounded-t-sm" />
-                <div className="w-[10%] h-[75%] bg-accent/70 rounded-t-sm" />
-                <div className="w-[10%] h-[60%] bg-accent/60 rounded-t-sm" />
-                <div className="w-[10%] h-[90%] bg-accent/80 rounded-t-sm" />
-                <div className="w-[10%] h-[100%] bg-accent rounded-t-sm" />
-              </div>
-            </div>
+          {/* Tech Pills */}
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1 select-none">
+            <span className="bg-white border border-slate-200/60 text-slate-500 text-[10px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">Gemini AI</span>
+            <span className="bg-white border border-slate-200/60 text-slate-500 text-[10px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">BullMQ</span>
+            <span className="bg-white border border-slate-200/60 text-slate-500 text-[10px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">Resend</span>
+            <span className="bg-white border border-slate-200/60 text-slate-500 text-[10px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">Analytics</span>
+            <span className="bg-white border border-slate-200/60 text-slate-500 text-[10px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">Redis</span>
           </div>
         </div>
       </div>
 
-      {/* ── Right Side: Authentication Card ── */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-slate-950 lg:bg-slate-900/10 px-6 py-12 lg:py-16">
-        <div className="w-full max-w-[420px] bg-slate-900/50 border border-slate-800 lg:bg-white lg:border-gray-100 shadow-2xl rounded-2xl p-6 sm:p-8">
-          <div className="text-center mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-white lg:text-gray-900 tracking-tight">Welcome Back 👋</h2>
-            <p className="text-xs sm:text-sm text-slate-400 lg:text-gray-500 mt-1.5">Sign in to manage your campaigns</p>
+      {/* ── Right Side: Authentication Panel ── */}
+      <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 py-12 lg:py-16">
+        <div className="w-full max-w-[380px] mx-auto space-y-7">
+          
+          {/* Brand Logo */}
+          <div className="flex items-center justify-center gap-2.5 select-none">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-accent to-indigo-400 text-white shadow-md shadow-accent/15">
+              <Layers className="h-5 w-5" />
+            </div>
+            <span className="text-base font-bold text-slate-900 tracking-tight">Mailtide</span>
+          </div>
+
+          {/* Subtitle */}
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome Back</h2>
+            <p className="text-sm text-slate-500 mt-1.5">Enter your credentials to access your account</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Email Field */}
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:text-gray-500">Email Address</label>
+              <label htmlFor="email" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 lg:text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
-                  className="pl-9 h-10 bg-slate-950/40 border-slate-850 text-white focus:border-accent focus:ring-accent/15 lg:bg-white lg:border-gray-200 lg:text-gray-900"
+                  className="pl-9 h-10 border-slate-200 text-slate-900 focus:border-accent focus:ring-accent/10"
                   {...register('email')}
                 />
               </div>
@@ -171,7 +183,7 @@ export default function Login() {
             {/* Password Field */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="password" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:text-gray-500">Password</label>
+                <label htmlFor="password" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Password</label>
                 <Link
                   to="/forgot-password"
                   onClick={(e) => { e.preventDefault(); toast.info('Password recovery is not implemented yet.'); }}
@@ -181,18 +193,18 @@ export default function Login() {
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 lg:text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="pl-9 pr-10 h-10 bg-slate-950/40 border-slate-850 text-white focus:border-accent focus:ring-accent/15 lg:bg-white lg:border-gray-200 lg:text-gray-900"
+                  className="pl-9 pr-10 h-10 border-slate-200 text-slate-900 focus:border-accent focus:ring-accent/10"
                   {...register('password')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 lg:text-gray-400 lg:hover:text-gray-600 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 focus:outline-none"
                   tabIndex="-1"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
@@ -207,9 +219,9 @@ export default function Login() {
               <input
                 id="remember-me"
                 type="checkbox"
-                className="h-4 w-4 text-accent border-slate-800 bg-slate-950/40 rounded focus:ring-accent/20 focus:ring-offset-0 lg:border-gray-300 lg:bg-white"
+                className="h-4 w-4 text-accent border-slate-200 rounded focus:ring-accent/20 focus:ring-offset-0"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-xs font-medium text-slate-400 lg:text-gray-500 select-none cursor-pointer">
+              <label htmlFor="remember-me" className="ml-2 block text-xs font-medium text-slate-550 select-none cursor-pointer">
                 Remember Me
               </label>
             </div>
@@ -217,7 +229,7 @@ export default function Login() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-10 mt-2 font-semibold shadow-lg shadow-accent/10 bg-accent hover:bg-accent-hover text-white rounded-xl transition-all duration-150 gap-2"
+              className="w-full h-10 mt-2 font-semibold shadow-md shadow-accent/10 bg-accent hover:bg-accent-hover text-white rounded-xl transition-all duration-150 gap-2"
               disabled={loading}
             >
               {loading ? (
@@ -234,10 +246,10 @@ export default function Login() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-800 lg:border-gray-150" />
+              <span className="w-full border-t border-slate-100" />
             </div>
             <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-              <span className="bg-[#090D16] lg:bg-white px-3 text-slate-500 lg:text-gray-400">Or</span>
+              <span className="bg-white px-3 text-slate-400">Or</span>
             </div>
           </div>
 
@@ -245,7 +257,7 @@ export default function Login() {
           <Button
             type="button"
             variant="outline"
-            className="w-full h-10 gap-2.5 font-medium border-slate-800 text-slate-300 hover:bg-slate-800/40 hover:text-white lg:border-gray-250 lg:text-gray-700 lg:hover:bg-gray-55 lg:hover:text-gray-900 rounded-xl transition-all duration-150"
+            className="w-full h-10 gap-2.5 font-medium border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all duration-150"
             onClick={() => toast.info('Google OAuth integration is coming soon!')}
           >
             <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
@@ -258,7 +270,7 @@ export default function Login() {
           </Button>
 
           {/* Create Account Link */}
-          <p className="mt-6 text-center text-xs text-slate-400 lg:text-gray-500">
+          <p className="mt-6 text-center text-xs text-slate-500">
             Don't have an account?{' '}
             <Link to="/register" className="text-accent hover:underline font-semibold">
               Create one
