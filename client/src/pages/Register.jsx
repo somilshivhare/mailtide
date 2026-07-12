@@ -256,7 +256,10 @@ export default function Register() {
             type="button"
             variant="outline"
             className="w-full h-10 gap-2.5 font-medium border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all duration-150"
-            onClick={() => toast.info('Google OAuth integration is coming soon!')}
+            onClick={() => {
+              const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+              window.location.href = `${API_BASE_URL}/api/auth/google`;
+            }}
           >
             <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.48 14.99 1 12 1 7.23 1 3.19 3.73 1.24 7.74l3.83 2.97C6.01 7.42 8.78 5.04 12 5.04z" />

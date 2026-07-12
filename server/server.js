@@ -18,6 +18,7 @@ import webhooksRouter from './routes/webhooks.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import errorMiddleware from './middleware/errorMiddleware.js';
 import { startWorker, stopWorker } from './worker.js';
+import passport from './config/passport.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,6 +88,7 @@ const authLimiter = rateLimit({
 });
 
 app.use('/api', limiter);
+app.use(passport.initialize());
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 

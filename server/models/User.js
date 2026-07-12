@@ -17,7 +17,23 @@ const UserSchema = new Schema({
   },
   password: {
     type: String,
-    required: true
+    required: function() {
+      return this.provider === 'local';
+    }
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  provider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false
   },
   company: {
     type: String,

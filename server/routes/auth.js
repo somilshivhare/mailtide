@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
-import auth from '../middleware/auth.js';
+import passport from 'passport';
+import * as authController from '../controllers/auth.controller.js';
+import authMiddleware from '../middleware/auth.js';
 import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import cloudinary from '../config/cloudinary.js';
 
-// Configure multer storage for avatars on Cloudinary
+// Configure multer storage for avatars on Cloudinary (keep existing configuration)
 const avatarStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
@@ -20,7 +19,6 @@ const avatarStorage = new CloudinaryStorage({
   }
 });
 
-// Configure file filter (images only)
 const avatarFileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   if (allowedTypes.includes(file.mimetype)) {
@@ -37,203 +35,28 @@ const uploadAvatar = multer({
 });
 
 const router = Router();
-const { JWT_SECRET } = process.env;
 
-const generateToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+// Routes
+router.post('/register', authController.register);
+router.post('/login', authController.login);
+router.get('/me', authMiddleware, authController.getMe);
+router.put('/profile', authMiddleware, authController.updateProfile);
 
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-};
+router.post('/profile/avatar', 
+  authMiddleware, 
+  authController.checkCloudinaryConfig, 
+  uploadAvatar.single('avatar'), 
+  authController.uploadAvatar, 
+  authController.handleAvatarUploadError
+);
 
-router.post('/register', async (req, res) => {
-  const { name, email, password } = req.body;
+router.post('/logout', authController.logout);
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  try {
-    const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Email already registered' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const user = await User.create({
-      name,
-      email: normalizedEmail,
-      password: hashedPassword
-    });
-
-    const token = generateToken({ id: user._id, email: user.email });
-
-    res.cookie('token', token, cookieOptions);
-
-    res.status(201).json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt
-      }
-    });
-  } catch (err) {
-    console.error(`Register error: ${err.message}`);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
-
-  try {
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
-
-    const token = generateToken({ id: user._id, email: user.email });
-
-    res.cookie('token', token, cookieOptions);
-
-    res.status(200).json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt
-      }
-    });
-  } catch (err) {
-    console.error(`Login error: ${err.message}`);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-router.get('/me', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.status(200).json(user);
-  } catch (err) {
-    console.error(`Get me error: ${err.message}`);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-/**
- * PUT /api/auth/profile
- * Updates basic profile details.
- */
-router.put('/profile', auth, async (req, res) => {
-  const { name, company, website, industry, timezone, bio } = req.body;
-
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
-
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    user.name = name.trim();
-    user.company = (company || '').trim();
-    user.website = (website || '').trim();
-    user.industry = (industry || '').trim();
-    user.timezone = (timezone || 'UTC').trim();
-    user.bio = (bio || '').trim();
-
-    await user.save();
-
-    res.status(200).json(user);
-  } catch (err) {
-    console.error(`Update profile error: ${err.message}`);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-/**
- * POST /api/auth/profile/avatar
- * Uploads user profile avatar image.
- */
-router.post('/profile/avatar', auth, (req, res, next) => {
-  // Check if Cloudinary credentials are configured
-  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    return res.status(500).json({ error: 'Image upload is not configured on the server. Cloudinary credentials are missing.' });
-  }
-  next();
-}, uploadAvatar.single('avatar'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No image file uploaded' });
-  }
-
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Delete old avatar from Cloudinary if it exists
-    if (user.avatar && user.avatar.publicId) {
-      try {
-        await cloudinary.uploader.destroy(user.avatar.publicId);
-        console.log(`[Cloudinary] Deleted old avatar: ${user.avatar.publicId}`);
-      } catch (destroyErr) {
-        console.error(`[Cloudinary] Failed to delete old avatar: ${destroyErr.message}`);
-      }
-    }
-
-    // Save secure_url and publicId in MongoDB User.avatar
-    user.avatar = {
-      url: req.file.path || req.file.secure_url || req.file.url,
-      publicId: req.file.filename
-    };
-    await user.save();
-
-    res.status(200).json(user);
-  } catch (err) {
-    console.error(`Upload avatar error: ${err.message}`);
-    res.status(500).json({ error: 'Server error' });
-  }
-}, (err, req, res, next) => {
-  console.error('Avatar upload error:', err);
-  let errMsg = err.message || 'An error occurred during file upload';
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    errMsg = 'File size is too large. Max limit is 2MB.';
-  }
-  res.status(400).json({ error: errMsg });
-});
-
-/**
- * POST /api/auth/logout
- * Clears the HttpOnly authentication cookie.
- */
-router.post('/logout', (req, res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
-  });
-  res.status(200).json({ message: 'Logged out successfully' });
-});
+// Google OAuth routes
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+router.get('/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login?error=oauth_failed', session: false }),
+  authController.googleCallback
+);
 
 export default router;
