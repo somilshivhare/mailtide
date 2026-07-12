@@ -62,7 +62,7 @@ export const handleResendWebhook = async (req, res) => {
     return res.status(400).json({ error: 'Malformed webhook payload' });
   }
 
-  const eventId = body.id || headers['svix-id'];
+  const eventId = body.id || svixId;
   if (!eventId) {
     console.warn('[Webhook] Webhook event ID missing');
     return res.status(400).json({ error: 'Missing event ID' });
